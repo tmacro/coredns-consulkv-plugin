@@ -15,12 +15,13 @@ This plugin enables CoreDNS to use Consul's Key-Value store as a backend for DNS
 To use this plugin, you need to compile it into CoreDNS. Add the following line to the `plugin.cfg` file in your CoreDNS source code:
 
 ```
-consulkv:github.com/mwantia/consulkv
+consulkv:github.com/mwantia/coredns-consulkv-plugin
 ```
 
 Then, rebuild CoreDNS with:
 
 ```sh
+go get github.com/mwantia/coredns-consulkv-plugin
 go generate
 go build
 ```
@@ -36,6 +37,7 @@ Add the plugin to your CoreDNS configuration file (Corefile):
         prefix dns
         token <consul-acl-token>
         zones example.com 100.in-addr.arpa
+        fallthrough
     }
 }
 ```
