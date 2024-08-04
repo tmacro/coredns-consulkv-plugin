@@ -65,7 +65,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 		log.Errorf("Error fetching from Consul: %v", err)
 
 		consulErrors.WithLabelValues(dns.Fqdn(zoneName)).Inc()
-		return dns.RcodeServerFailure, err
+		return c.HandleError(r, dns.RcodeServerFailure, w, err)
 	}
 	if kv == nil {
 		if recordName == "@" {
@@ -76,7 +76,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 				return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 			}
 
-			return dns.RcodeNameError, err
+			return c.HandleError(r, dns.RcodeNameError, w, nil)
 		}
 		//
 		wildcardkey := c.Prefix + "/" + zoneName + "/*"
@@ -86,7 +86,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error fetching from Consul: %v", err)
 
 			consulErrors.WithLabelValues(dns.Fqdn(zoneName)).Inc()
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		if wildcardkv == nil {
@@ -97,7 +97,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 				return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 			}
 
-			return dns.RcodeNameError, err
+			return c.HandleError(r, dns.RcodeNameError, w, nil)
 		}
 
 		kv = wildcardkv
@@ -116,7 +116,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 		log.Errorf("Error parsing JSON: %v", err)
 		invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-		return dns.RcodeServerFailure, err
+		return c.HandleError(r, dns.RcodeServerFailure, w, err)
 	}
 
 	ttl := 3600
@@ -134,7 +134,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Warningf("Record defined as PTR but not requested")
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		var values []string
@@ -142,7 +142,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		for _, ptr := range values {
@@ -159,7 +159,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		for _, ip := range values {
@@ -176,7 +176,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		for _, ip := range values {
@@ -193,7 +193,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		if value != "" {
@@ -210,7 +210,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		rr := &dns.TXT{
@@ -236,7 +236,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error parsing JSON: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		for _, srv := range srvValues {
@@ -258,7 +258,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 			log.Errorf("Error writing DNS response: %v", err)
 			invalidResponses.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
 
-			return dns.RcodeServerFailure, err
+			return c.HandleError(r, dns.RcodeServerFailure, w, err)
 		}
 
 		successfulQueries.WithLabelValues(dns.Fqdn(zoneName), record.Type).Inc()
@@ -272,5 +272,20 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 		return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 	}
 
-	return dns.RcodeNameError, err
+	return c.HandleError(r, dns.RcodeNameError, w, nil)
+}
+
+func (c ConsulKV) HandleError(r *dns.Msg, rcode int, w dns.ResponseWriter, e error) (int, error) {
+	m := new(dns.Msg)
+	m.SetRcode(r, rcode)
+	m.Authoritative = true
+	m.RecursionAvailable = true
+
+	err := w.WriteMsg(m)
+	if err != nil {
+		log.Errorf("Error writing DNS error response: %v", err)
+		return dns.RcodeServerFailure, err
+	}
+
+	return rcode, e
 }
