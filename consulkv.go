@@ -40,8 +40,13 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 	for _, zone := range c.Zones {
 		if strings.HasSuffix(dns.Fqdn(qname), dns.Fqdn(zone)) {
 			zoneName = zone
-			recordName = strings.TrimSuffix(qname, zone)
-			recordName = strings.TrimSuffix(recordName, ".")
+			recordName = qname
+
+			for strings.HasSuffix(recordName, zone) {
+				recordName = strings.TrimSuffix(recordName, zone)
+				recordName = strings.TrimSuffix(recordName, ".")
+			}
+
 			break
 		}
 	}
@@ -69,13 +74,12 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 	}
 	if kv == nil {
 		if recordName == "@" {
-			log.Warning("No root entry found in Consul")
-			failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
-
 			if c.Fallthrough {
 				return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 			}
 
+			failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
+			log.Warning("No root entry found in Consul")
 			return c.HandleError(r, dns.RcodeNameError, w, nil)
 		}
 		//
@@ -90,13 +94,12 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 		}
 
 		if wildcardkv == nil {
-			log.Warningf("No value found in Consul for key: %s", key)
-			failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
-
 			if c.Fallthrough {
 				return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 			}
 
+			log.Warningf("No value found in Consul for key: %s", key)
+			failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 			return c.HandleError(r, dns.RcodeNameError, w, nil)
 		}
 
@@ -265,13 +268,12 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 		return dns.RcodeSuccess, nil
 	}
 
-	log.Debugf("No matching records found")
-	failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
-
 	if c.Fallthrough {
 		return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 	}
 
+	log.Warning("No matching records found")
+	failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 	return c.HandleError(r, dns.RcodeNameError, w, nil)
 }
 
