@@ -1,0 +1,33 @@
+package consulkv
+
+import (
+	"encoding/json"
+
+	"github.com/coredns/coredns/plugin"
+	"github.com/hashicorp/consul/api"
+)
+
+type ConsulKV struct {
+	Next        plugin.Handler
+	Client      *api.Client
+	Prefix      string
+	Address     string
+	Token       string
+	Zones       []string
+	Fallthrough bool
+}
+
+type Record struct {
+	TTL     *int `json:"ttl"`
+	Records []struct {
+		Type  string          `json:"type"`
+		Value json.RawMessage `json:"value"`
+	} `json:"records"`
+}
+
+type SRVRecord struct {
+	Target   string `json:"target"`
+	Port     uint16 `json:"port"`
+	Priority uint16 `json:"priority"`
+	Weight   uint16 `json:"weight"`
+}
