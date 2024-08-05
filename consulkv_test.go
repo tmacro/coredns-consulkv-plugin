@@ -53,8 +53,8 @@ func TestConsulKV(t *testing.T) {
 	}
 
 	var tests = []testCase{
-		{"example.com", dns.TypeA, dns.RcodeSuccess, "1.2.3.4"},
-		{"www.example.com", dns.TypeA, dns.RcodeSuccess, "0.0.0.0"},
+		{"example.com", dns.TypeA, dns.RcodeSuccess, "192.168.0.2"},
+		{"www.example.com", dns.TypeA, dns.RcodeSuccess, "192.168.0.3"},
 		{"alias.example.com", dns.TypeCNAME, dns.RcodeSuccess, "www.example.com"},
 		{"txt.example.com", dns.TypeTXT, dns.RcodeSuccess, "This is a test"},
 	}

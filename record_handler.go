@@ -3,9 +3,39 @@ package consulkv
 import (
 	"encoding/json"
 	"net"
+	"strings"
 
 	"github.com/miekg/dns"
 )
+
+func (c ConsulKV) AppendSOAToAuthority(msg *dns.Msg, qname string, soa *SOARecord) {
+	rr := &dns.SOA{
+		Hdr:     dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: soa.MINIMUM},
+		Ns:      dns.Fqdn(soa.MNAME),
+		Mbox:    dns.Fqdn(strings.Replace(soa.RNAME, "@", ".", 1)),
+		Serial:  soa.SERIAL,
+		Refresh: soa.REFRESH,
+		Retry:   soa.RETRY,
+		Expire:  soa.EXPIRE,
+		Minttl:  soa.MINIMUM,
+	}
+	msg.Ns = append(msg.Ns, rr)
+}
+
+func (c ConsulKV) AppendSOARecord(msg *dns.Msg, qname string, soa *SOARecord) bool {
+	rr := &dns.SOA{
+		Hdr:     dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: soa.MINIMUM},
+		Ns:      dns.Fqdn(soa.MNAME),
+		Mbox:    dns.Fqdn(strings.Replace(soa.RNAME, "@", ".", 1)),
+		Serial:  soa.SERIAL,
+		Refresh: soa.REFRESH,
+		Retry:   soa.RETRY,
+		Expire:  soa.EXPIRE,
+		Minttl:  soa.MINIMUM,
+	}
+	msg.Answer = append(msg.Answer, rr)
+	return true
+}
 
 func AppendARecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
 	var ips []string
@@ -83,21 +113,26 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 }
 
 func AppendPTRRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
-	var ips []string
-	if err := json.Unmarshal(value, &ips); err != nil {
+	var domains []string
+	if err := json.Unmarshal(value, &domains); err != nil {
 		log.Errorf("Error parsing JSON for PTR record: %v", err)
 		return false
 	}
 
-	for _, ptr := range ips {
-		rr := &dns.PTR{
-			Hdr: dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: uint32(ttl)},
-			Ptr: dns.Fqdn(ptr),
+	for _, domain := range domains {
+		if !IsValidDomain(domain) {
+			log.Warningf("Invalid domain in PTR record: %s", domain)
+
+		} else {
+			rr := &dns.PTR{
+				Hdr: dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: uint32(ttl)},
+				Ptr: dns.Fqdn(domain),
+			}
+			msg.Answer = append(msg.Answer, rr)
 		}
-		msg.Answer = append(msg.Answer, rr)
 	}
 
-	return len(ips) > 0
+	return len(msg.Answer) > 0
 }
 
 func AppendSRVRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {

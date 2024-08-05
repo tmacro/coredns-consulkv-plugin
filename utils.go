@@ -7,9 +7,8 @@ import (
 )
 
 func (c ConsulKV) GetZoneAndRecordName(qname string) (string, string) {
-	// Remove the trailing dot if present
 	qname = strings.TrimSuffix(dns.Fqdn(qname), ".")
-	// Find the matching zone
+
 	for _, zone := range c.Zones {
 		if strings.HasSuffix(qname, zone) {
 			recordName := strings.TrimSuffix(qname, zone)
@@ -30,10 +29,36 @@ func BuildConsulKey(prefix, zone, record string) string {
 	return prefix + "/" + zone + "/" + record
 }
 
-func GetRecordTTL(record *Record) int {
+func GetDefaultSOA(zoneName string) *SOARecord {
+	return &SOARecord{
+		MNAME:   "ns." + zoneName,
+		RNAME:   "hostmaster." + zoneName,
+		SERIAL:  soaSerial,
+		REFRESH: 3600,
+		RETRY:   600,
+		EXPIRE:  86400,
+		MINIMUM: 3600,
+	}
+}
+
+func GetDefaultTTL(record *Record) int {
 	if record.TTL != nil {
 		return *record.TTL
 	}
 
 	return 3600 // Default TTL
+}
+
+func IsValidDomain(domain string) bool {
+	if !strings.Contains(domain, ".") {
+		return false
+	}
+
+	for _, char := range domain {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '.') {
+			return false
+		}
+	}
+
+	return true
 }

@@ -84,14 +84,37 @@ The value for each key should be a JSON object with the following structure:
 
 ## Examples
 
-1. A record for www.example.com:
+2. SOA record for example.com:
+
+   Key: `dns/zones/example.com/@`
+   Value:
+   ```json
+   {
+     "ttl": 3600,
+     "records": [
+       {
+         "type": "SOA",
+         "value": {
+           "mname": "ns.example.com",
+           "rname": "postmaster.example.com",
+           "serial": 2023080501,
+           "refresh": 7200,
+           "retry": 3600,
+           "expire": 1209600,
+           "minimum": 3600
+         }
+       }
+     ]
+   }
+   ```
+
+2. A record for www.example.com:
 
    Key: `dns/zones/example.com/www`
    Value:
    ```json
    {
      "ttl": 3600,
-     "type": "A",
      "records": [
        {
          "type": "A",
@@ -101,7 +124,7 @@ The value for each key should be a JSON object with the following structure:
    }
    ```
 
-2. PTR record for reverse DNS:
+3. PTR record for reverse DNS:
 
    Key: `dns/zones/100.in-addr.arpa/86.203.96`
    Value:
@@ -117,13 +140,13 @@ The value for each key should be a JSON object with the following structure:
    }
    ```
 
-3. Wildcard record for *.example.com with additional TXT:
+4. Wildcard record for *.example.com with additional TXT:
 
    Key: `dns/zones/example.com/*`
    Value:
    ```json
    {
-     "ttl": 3600,,
+     "ttl": 3600,
      "records": [
        {
          "type": "A",
@@ -137,7 +160,7 @@ The value for each key should be a JSON object with the following structure:
    }
    ```
 
-4. SRV record for a service:
+5. SRV record for a service:
 
    Key: `dns/zones/example.com/_sip._tcp`
    Value:
@@ -159,7 +182,7 @@ The value for each key should be a JSON object with the following structure:
      ]
    }
 
-3. CNAME record for test.example.com:
+6. CNAME record for test.example.com:
 
    Key: `dns/zones/example.com/test`
    Value:

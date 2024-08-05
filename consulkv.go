@@ -69,7 +69,15 @@ func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zoneName strin
 		log.Warningf("No value found in Consul for key: %s", key)
 		failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 
-		return c.HandleError(r, dns.RcodeNameError, w, nil)
+		soa, err := c.GetSOARecordFromConsul(zoneName)
+		if err != nil {
+			log.Errorf("Error loading SOA record: %v", err)
+
+			return c.HandleError(r, dns.RcodeNameError, w, nil)
+		}
+
+		return c.HandleNXDomain(qname, soa, r, w)
+
 	}
 
 	return c.CreateDNSResponse(qname, qtype, record, ctx, r, w)
@@ -80,21 +88,40 @@ func (c ConsulKV) CreateDNSResponse(qname string, qtype uint16, record *Record, 
 	msg.SetReply(r)
 	msg.Authoritative = true
 
+	log.Debugf("Creating DNS response for %s", qname)
+
 	handled := c.HandleRecord(msg, qname, qtype, record)
+	zoneName, _ := c.GetZoneAndRecordName(qname)
 
 	if handled && len(msg.Answer) > 0 {
-		return c.SendDNSResponse(dns.Fqdn(qname), msg, w)
+		return c.SendDNSResponse(zoneName, msg, w)
 	}
 
 	return c.HandleNoMatchingRecords(qname, qtype, ctx, r, w)
 }
 
 func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *Record) bool {
-	ttl := GetRecordTTL(record)
+	ttl := GetDefaultTTL(record)
 	foundRequestedType := false
 
+	log.Debugf("Amount of available records: %v", len(record.Records))
+
+	zoneName, _ := c.GetZoneAndRecordName(qname)
+	soa, err := c.GetSOARecordFromConsul(zoneName)
+
+	if err != nil {
+		log.Errorf("Error loading SOA record: %v", err)
+		invalidResponses.WithLabelValues(zoneName).Inc()
+	}
+
 	for _, rec := range record.Records {
+		log.Debugf("Searching record for type %s", rec.Type)
+
 		switch rec.Type {
+		case "SOA":
+			if qtype == dns.TypeSOA || qtype == dns.TypeANY {
+				foundRequestedType = c.AppendSOARecord(msg, qname, soa)
+			}
 		case "A":
 			if qtype == dns.TypeA {
 				foundRequestedType = AppendARecords(msg, qname, ttl, rec.Value)
@@ -125,6 +152,10 @@ func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record 
 		}
 	}
 
+	if !foundRequestedType && soa != nil && qtype != dns.TypeSOA && qtype != dns.TypeANY {
+		c.AppendSOAToAuthority(msg, qname, soa)
+	}
+
 	return foundRequestedType
 }
 
@@ -148,10 +179,53 @@ func (c ConsulKV) HandleNoMatchingRecords(qname string, qtype uint16, ctx contex
 		return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
 	}
 
-	log.Warningf("Requested record type %d not found for %s", qtype, qname)
+	log.Infof("Requested record type %d not found for %s", qtype, qname)
 	failedQueries.WithLabelValues(dns.Fqdn(qname)).Inc()
 
-	return c.HandleError(r, dns.RcodeNameError, w, nil)
+	zoneName, _ := c.GetZoneAndRecordName(qname)
+	soa, err := c.GetSOARecordFromConsul(zoneName)
+
+	if err == nil && soa != nil {
+		return c.HandleNoData(qname, soa, r, w)
+	}
+
+	return c.HandleNXDomain(qname, soa, r, w)
+}
+
+func (c ConsulKV) HandleNXDomain(qname string, soa *SOARecord, r *dns.Msg, w dns.ResponseWriter) (int, error) {
+	m := new(dns.Msg)
+	m.SetRcode(r, dns.RcodeNameError)
+	m.Authoritative = true
+	m.RecursionAvailable = false
+
+	c.AppendSOAToAuthority(m, qname, soa)
+
+	err := w.WriteMsg(m)
+	if err != nil {
+		log.Errorf("Error writing NODATA response: %v", err)
+
+		return dns.RcodeServerFailure, err
+	}
+
+	return dns.RcodeNameError, nil
+}
+
+func (c ConsulKV) HandleNoData(qname string, soa *SOARecord, r *dns.Msg, w dns.ResponseWriter) (int, error) {
+	m := new(dns.Msg)
+	m.SetReply(r)
+	m.Authoritative = true
+	m.RecursionAvailable = false
+
+	c.AppendSOAToAuthority(m, qname, soa)
+
+	err := w.WriteMsg(m)
+	if err != nil {
+		log.Errorf("Error writing NODATA response: %v", err)
+
+		return dns.RcodeServerFailure, err
+	}
+
+	return dns.RcodeSuccess, nil
 }
 
 func (c ConsulKV) HandleError(r *dns.Msg, rcode int, w dns.ResponseWriter, e error) (int, error) {

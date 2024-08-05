@@ -1,6 +1,8 @@
 package consulkv
 
 import (
+	"time"
+
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
@@ -10,6 +12,7 @@ import (
 )
 
 var pluginname = "consulkv"
+var soaSerial = uint32(time.Now().Unix())
 var log = clog.NewWithPlugin(pluginname)
 
 func init() {
