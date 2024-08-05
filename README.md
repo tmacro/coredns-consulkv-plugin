@@ -68,8 +68,12 @@ The value for each key should be a JSON object with the following structure:
 ```json
 {
   "ttl": 3600,
-  "type": "A",
-  "value": "<see-examples-for-details>"
+  "records": [
+    {
+      "type": "<type>",
+      "value": "<see-examples-for-details>"
+    }
+  ]
 }
 ```
 
@@ -88,7 +92,12 @@ The value for each key should be a JSON object with the following structure:
    {
      "ttl": 3600,
      "type": "A",
-     "value": ["192.168.1.10"]
+     "records": [
+       {
+         "type": "A",
+         "value": ["192.168.1.10"]
+       }
+     ]
    }
    ```
 
@@ -99,20 +108,32 @@ The value for each key should be a JSON object with the following structure:
    ```json
    {
      "ttl": 3600,
-     "type": "PTR",
-     "value": ["www.example.com"]
+     "records": [
+       {
+         "type": "PTR",
+         "value": ["www.example.com"]
+       }
+     ]
    }
    ```
 
-3. Wildcard record for *.example.com:
+3. Wildcard record for *.example.com with additional TXT:
 
    Key: `dns/zones/example.com/*`
    Value:
    ```json
    {
-     "ttl": 3600,
-     "type": "A",
-     "value": ["192.168.1.100"]
+     "ttl": 3600,,
+     "records": [
+       {
+         "type": "A",
+         "value": ["192.168.1.100"]
+       },
+       {
+          "type": "TXT",
+          "value": ["This is some additional information"]
+       }
+     ]
    }
    ```
 
@@ -123,13 +144,17 @@ The value for each key should be a JSON object with the following structure:
    ```json
    {
      "ttl": 3600,
-     "type": "SRV",
-     "value": [
+     "records": [
        {
-         "target": "sip.example.com",
-         "port": 5060,
-         "priority": 10,
-         "weight": 100
+         "type": "SRV",
+         "value": [
+         {
+           "target": "sip.example.com",
+           "port": 5060,
+           "priority": 10,
+           "weight": 100
+         }
+        ]
        }
      ]
    }
@@ -141,8 +166,12 @@ The value for each key should be a JSON object with the following structure:
    ```json
    {
      "ttl": 3600,
-     "type": "CNAME",
-     "value": "www.example.com"
+     "records": [
+       {
+         "type": "CNAME",
+         "value": "www.example.com"
+       }
+     ]
    }
    ```
 
