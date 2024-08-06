@@ -8,13 +8,12 @@ import (
 )
 
 type ConsulKV struct {
-	Next        plugin.Handler
-	Client      *api.Client
-	Prefix      string
-	Address     string
-	Token       string
-	Zones       []string
-	Fallthrough bool
+	Next    plugin.Handler
+	Client  *api.Client
+	Prefix  string
+	Address string
+	Token   string
+	Zones   []string
 }
 
 type Record struct {

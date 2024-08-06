@@ -45,10 +45,6 @@ func (c ConsulKV) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg
 func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zoneName string, recordName string,
 	ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	if recordName == "@" {
-		if c.Fallthrough {
-			return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
-		}
-
 		failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 		log.Warning("No root entry found in Consul")
 
@@ -62,10 +58,6 @@ func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zoneName strin
 	}
 
 	if record == nil {
-		if c.Fallthrough {
-			return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
-		}
-
 		log.Warningf("No value found in Consul for key: %s", key)
 		failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 
@@ -175,11 +167,7 @@ func (c ConsulKV) SendDNSResponse(zoneName string, msg *dns.Msg, w dns.ResponseW
 }
 
 func (c ConsulKV) HandleNoMatchingRecords(qname string, qtype uint16, ctx context.Context, r *dns.Msg, w dns.ResponseWriter) (int, error) {
-	if c.Fallthrough {
-		return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
-	}
-
-	log.Infof("Requested record type %d not found for %s", qtype, qname)
+	log.Infof("Requested record type %s not found for %s", dns.TypeToString[qtype], qname)
 	failedQueries.WithLabelValues(dns.Fqdn(qname)).Inc()
 
 	zoneName, _ := c.GetZoneAndRecordName(qname)

@@ -37,7 +37,6 @@ Add the plugin to your CoreDNS configuration file (Corefile):
         prefix dns
         token <consul-acl-token>
         zones example.com 100.in-addr.arpa
-        fallthrough
     }
 }
 ```
@@ -48,7 +47,6 @@ Add the plugin to your CoreDNS configuration file (Corefile):
 - `prefix`: Key prefix in Consul KV (default: `dns`)
 - `token`: Consul ACL token (optional)
 - `zones`: DNS zone to be handled by this plugin (can be specified multiple times)
-- `fallthrough`: If set, passes the request to the next plugin when no record is found (optional, default: false)
 
 ## Consul KV Structure
 

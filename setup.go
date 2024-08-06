@@ -21,10 +21,9 @@ func init() {
 
 func setup(c *caddy.Controller) error {
 	p := &ConsulKV{
-		Prefix:      "dns",
-		Address:     "http://127.0.0.1:8500",
-		Zones:       []string{},
-		Fallthrough: false,
+		Prefix:  "dns",
+		Address: "http://127.0.0.1:8500",
+		Zones:   []string{},
 	}
 
 	for c.Next() {
@@ -52,8 +51,6 @@ func setup(c *caddy.Controller) error {
 						return c.ArgErr()
 					}
 					p.Zones = append(p.Zones, args...)
-				case "fallthrough":
-					p.Fallthrough = true
 				default:
 					if c.Val() != "}" {
 						return c.Errf("unknown property '%s'", c.Val())
@@ -71,6 +68,7 @@ func setup(c *caddy.Controller) error {
 		prometheus.MustRegister(failedQueries)
 		prometheus.MustRegister(consulErrors)
 		prometheus.MustRegister(invalidResponses)
+
 		return nil
 	})
 
@@ -78,6 +76,7 @@ func setup(c *caddy.Controller) error {
 	config.Address = p.Address
 	config.Token = p.Token
 	client, err := api.NewClient(config)
+
 	if err != nil {
 		return plugin.Error(pluginname, err)
 	}
@@ -85,6 +84,7 @@ func setup(c *caddy.Controller) error {
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		p.Next = next
 		p.Client = client
+
 		return p
 	})
 

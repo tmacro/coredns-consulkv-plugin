@@ -26,7 +26,7 @@ func (c ConsulKV) AppendSOARecord(msg *dns.Msg, qname string, soa *SOARecord) bo
 	rr := &dns.SOA{
 		Hdr:     dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: soa.MINIMUM},
 		Ns:      dns.Fqdn(soa.MNAME),
-		Mbox:    dns.Fqdn(strings.Replace(soa.RNAME, "@", ".", 1)),
+		Mbox:    dns.Fqdn(soa.RNAME),
 		Serial:  soa.SERIAL,
 		Refresh: soa.REFRESH,
 		Retry:   soa.RETRY,
@@ -34,6 +34,7 @@ func (c ConsulKV) AppendSOARecord(msg *dns.Msg, qname string, soa *SOARecord) bo
 		Minttl:  soa.MINIMUM,
 	}
 	msg.Answer = append(msg.Answer, rr)
+
 	return true
 }
 
@@ -104,10 +105,10 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 
 	if record != nil {
-		c.HandleRecord(msg, recordName, qtype, record)
+		return c.HandleRecord(msg, recordName, qtype, record)
 	}
 
-	log.Debugf("No record found for alias %s and type %v", recordName, qtype)
+	log.Debugf("No record found for alias %s and type %s", recordName, dns.TypeToString[qtype])
 
 	return true
 }
@@ -173,7 +174,7 @@ func AppendTXTRecords(msg *dns.Msg, qtype uint16, qname string, ttl int, value j
 	if qtype == dns.TypeTXT {
 		msg.Answer = append(msg.Answer, rr)
 		txtAnswered = true
-	} else if qtype == dns.TypeA {
+	} else {
 		msg.Extra = append(msg.Extra, rr)
 	}
 
