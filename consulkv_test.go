@@ -2,22 +2,28 @@ package consulkv
 
 import (
 	"context"
+	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/joho/godotenv"
+	"github.com/mwantia/coredns-consulkv-plugin/logging"
 
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
+	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/coredns/coredns/plugin/test"
 	"github.com/hashicorp/consul/api"
 	"github.com/miekg/dns"
 )
 
-type testCase struct {
-	qname          string
-	qtype          uint16
+type TestCase struct {
+	testName       string
+	queryName      string
+	queryType      uint16
 	expectedCode   int
+	expectedType   uint16
 	expectedAnswer string
 }
 
@@ -26,6 +32,20 @@ func TestConsulKV(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error loading .env file: %v", err)
 	}
+
+	tempFile, err := ioutil.TempFile("", "coredns-consulkv-test-log")
+	if err != nil {
+		t.Fatalf("Failed to create temp file for logging: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	originalLog := logging.Log
+	logging.Log = clog.NewWithPlugin("consulkv")
+	clog.D.Set()
+	log.SetOutput(os.Stdout)
+	defer func() {
+		logging.Log = originalLog
+	}()
 
 	config := api.DefaultConfig()
 	config.Address = os.Getenv("CONSUL_ADDRESS")
@@ -52,23 +72,26 @@ func TestConsulKV(t *testing.T) {
 		c.Zones = []string{"example.com."}
 	}
 
-	var tests = []testCase{
-		{"example.com", dns.TypeA, dns.RcodeSuccess, "192.168.0.2"},
-		{"www.example.com", dns.TypeA, dns.RcodeSuccess, "192.168.0.3"},
-		{"alias.example.com", dns.TypeCNAME, dns.RcodeSuccess, "www.example.com"},
-		{"txt.example.com", dns.TypeTXT, dns.RcodeSuccess, "This is a test"},
+	var tests = []TestCase{
+		{"NS", "example.com", dns.TypeNS, dns.RcodeSuccess, dns.TypeNS, ""},
+		{"Root A", "example.com", dns.TypeA, dns.RcodeSuccess, dns.TypeA, "192.168.0.2"},
+		{"Sub A", "www.example.com", dns.TypeA, dns.RcodeSuccess, dns.TypeA, "192.168.0.3"},
+		{"CNAME Alias", "alias.example.com", dns.TypeCNAME, dns.RcodeSuccess, dns.TypeCNAME, "www.example.com"},
+		{"TXT", "txt.example.com", dns.TypeTXT, dns.RcodeSuccess, dns.TypeTXT, "This is a test"},
 	}
 
 	runTests(t, &c, tests)
 }
 
-func runTests(t *testing.T, c *ConsulKV, tests []testCase) {
+func runTests(t *testing.T, c *ConsulKV, tests []TestCase) {
 	ctx := context.TODO()
 
 	for _, tc := range tests {
-		t.Run(tc.qname, func(t *testing.T) {
+		t.Run(tc.testName, func(t *testing.T) {
+			logging.Log.Debugf("Testing %s query for %s with type %s", tc.testName, tc.queryName, dns.TypeToString[tc.queryType])
+
 			req := new(dns.Msg)
-			req.SetQuestion(tc.qname, tc.qtype)
+			req.SetQuestion(tc.queryName, tc.queryType)
 			rec := dnstest.NewRecorder(&test.ResponseWriter{})
 
 			code, err := c.ServeDNS(ctx, rec, req)
@@ -86,7 +109,7 @@ func runTests(t *testing.T, c *ConsulKV, tests []testCase) {
 					t.Errorf("Expected an answer, but got none")
 				} else {
 					answer := rec.Msg.Answer[0]
-					switch tc.qtype {
+					switch tc.queryType {
 					case dns.TypeA:
 						if a, ok := answer.(*dns.A); ok {
 							if a.A.String() != tc.expectedAnswer {

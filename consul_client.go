@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/miekg/dns"
+	"github.com/mwantia/coredns-consulkv-plugin/logging"
+	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
 func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
@@ -18,7 +20,7 @@ func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
 	var record Record
 	err = json.Unmarshal(kv.Value, &record)
 	if err != nil {
-		log.Errorf("Error converting json: %v", kv.Value)
+		logging.Log.Errorf("Error converting json: %v", kv.Value)
 
 		return nil, err
 	}
@@ -26,7 +28,7 @@ func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
 	return &record, nil
 }
 
-func (c ConsulKV) GetSOARecordFromConsul(zoneName string) (*SOARecord, error) {
+func (c ConsulKV) GetSOARecordFromConsul(zoneName string) (*records.SOARecord, error) {
 	key := BuildConsulKey(c.Prefix, zoneName, "@")
 	record, err := c.GetRecordFromConsul(key)
 	if err != nil {
@@ -36,7 +38,7 @@ func (c ConsulKV) GetSOARecordFromConsul(zoneName string) (*SOARecord, error) {
 	if record != nil {
 		for _, rec := range record.Records {
 			if rec.Type == "SOA" {
-				var soa SOARecord
+				var soa records.SOARecord
 				err = json.Unmarshal(rec.Value, &soa)
 				if err != nil {
 					return nil, err
@@ -58,7 +60,7 @@ func (c ConsulKV) HandleConsulError(zoneName string, r *dns.Msg, w dns.ResponseW
 
 	err := w.WriteMsg(m)
 	if err != nil {
-		log.Errorf("Error writing DNS error response: %v", err)
+		logging.Log.Errorf("Error writing DNS error response: %v", err)
 
 		invalidResponses.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 

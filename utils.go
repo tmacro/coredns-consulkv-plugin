@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
 func (c ConsulKV) GetZoneAndRecordName(qname string) (string, string) {
@@ -29,8 +30,8 @@ func BuildConsulKey(prefix, zone, record string) string {
 	return prefix + "/" + zone + "/" + record
 }
 
-func GetDefaultSOA(zoneName string) *SOARecord {
-	return &SOARecord{
+func GetDefaultSOA(zoneName string) *records.SOARecord {
+	return &records.SOARecord{
 		MNAME:   "ns." + zoneName,
 		RNAME:   "hostmaster." + zoneName,
 		SERIAL:  soaSerial,
@@ -47,18 +48,4 @@ func GetDefaultTTL(record *Record) int {
 	}
 
 	return 3600 // Default TTL
-}
-
-func IsValidDomain(domain string) bool {
-	if !strings.Contains(domain, ".") {
-		return false
-	}
-
-	for _, char := range domain {
-		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '.') {
-			return false
-		}
-	}
-
-	return true
 }

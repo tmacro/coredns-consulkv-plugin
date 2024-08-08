@@ -6,17 +6,14 @@ import (
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
-	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var pluginname = "consulkv"
 var soaSerial = uint32(time.Now().Unix())
-var log = clog.NewWithPlugin(pluginname)
 
 func init() {
-	plugin.Register(pluginname, setup)
+	plugin.Register("consulkv", setup)
 }
 
 func setup(c *caddy.Controller) error {
@@ -78,7 +75,7 @@ func setup(c *caddy.Controller) error {
 	client, err := api.NewClient(config)
 
 	if err != nil {
-		return plugin.Error(pluginname, err)
+		return plugin.Error("consulkv", err)
 	}
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
