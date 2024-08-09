@@ -8,11 +8,10 @@ import (
 	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
-func AppendPTRRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
+func AppendPTRRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) (bool, error) {
 	var domains []string
 	if err := json.Unmarshal(value, &domains); err != nil {
-		logging.Log.Errorf("Error parsing JSON for PTR record: %v", err)
-		return false
+		return false, err
 	}
 
 	for _, domain := range domains {
@@ -28,7 +27,7 @@ func AppendPTRRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage
 		}
 	}
 
-	return len(msg.Answer) > 0
+	return len(msg.Answer) > 0, nil
 }
 
 func IsValidDomain(domain string) bool {

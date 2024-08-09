@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 
 	"github.com/miekg/dns"
-	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
-func AppendTXTRecords(msg *dns.Msg, qtype uint16, qname string, ttl int, value json.RawMessage) bool {
+func AppendTXTRecords(msg *dns.Msg, qtype uint16, qname string, ttl int, value json.RawMessage) (bool, error) {
 	var values []string
 	if err := json.Unmarshal(value, &values); err != nil {
-		logging.Log.Errorf("Error parsing JSON for TXT record: %v", err)
-		return false
+		return false, err
 	}
 
 	txtAnswered := false
@@ -28,5 +26,5 @@ func AppendTXTRecords(msg *dns.Msg, qtype uint16, qname string, ttl int, value j
 		msg.Extra = append(msg.Extra, rr)
 	}
 
-	return txtAnswered
+	return txtAnswered, nil
 }

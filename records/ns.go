@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 
 	"github.com/miekg/dns"
-	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
-func AppendNSRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
+func AppendNSRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) (bool, error) {
 	var nameservers []string
 	if err := json.Unmarshal(value, &nameservers); err != nil {
-		logging.Log.Errorf("Error parsing JSON for NS record: %v", err)
-		return false
+		return false, err
 	}
 
 	for _, ns := range nameservers {
@@ -22,5 +20,5 @@ func AppendNSRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage)
 		msg.Answer = append(msg.Answer, rr)
 	}
 
-	return len(nameservers) > 0
+	return len(nameservers) > 0, nil
 }

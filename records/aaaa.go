@@ -5,14 +5,12 @@ import (
 	"net"
 
 	"github.com/miekg/dns"
-	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
-func AppendAAAARecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
+func AppendAAAARecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) (bool, error) {
 	var ips []string
 	if err := json.Unmarshal(value, &ips); err != nil {
-		logging.Log.Errorf("Error parsing JSON for AAAA record: %v", err)
-		return false
+		return false, err
 	}
 
 	for _, ip := range ips {
@@ -23,5 +21,5 @@ func AppendAAAARecords(msg *dns.Msg, qname string, ttl int, value json.RawMessag
 		msg.Answer = append(msg.Answer, rr)
 	}
 
-	return len(ips) > 0
+	return len(ips) > 0, nil
 }

@@ -1,33 +1,26 @@
 package consulkv
 
 import (
-	"strings"
-
 	"github.com/miekg/dns"
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) GetZoneAndRecordName(qname string) (string, string) {
-	qname = strings.TrimSuffix(dns.Fqdn(qname), ".")
+func PrepareResponseRcode(request *dns.Msg, rcode int, recursionAvailable bool) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetRcode(request, rcode)
+	m.Authoritative = true
+	m.RecursionAvailable = recursionAvailable
 
-	for _, zone := range c.Zones {
-		if strings.HasSuffix(qname, zone) {
-			recordName := strings.TrimSuffix(qname, zone)
-			recordName = strings.TrimSuffix(recordName, ".")
-
-			if recordName == "" {
-				recordName = "@"
-			}
-
-			return zone, recordName
-		}
-	}
-
-	return "", ""
+	return m
 }
 
-func BuildConsulKey(prefix, zone, record string) string {
-	return prefix + "/" + zone + "/" + record
+func PrepareResponseReply(request *dns.Msg, recursionAvailable bool) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(request)
+	m.Authoritative = true
+	m.RecursionAvailable = recursionAvailable
+
+	return m
 }
 
 func GetDefaultSOA(zoneName string) *records.SOARecord {
@@ -42,7 +35,7 @@ func GetDefaultSOA(zoneName string) *records.SOARecord {
 	}
 }
 
-func GetDefaultTTL(record *Record) int {
+func GetDefaultTTL(record *records.Record) int {
 	if record.TTL != nil {
 		return *record.TTL
 	}

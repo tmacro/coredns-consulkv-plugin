@@ -5,7 +5,3 @@ import (
 )
 
 var Log = clog.NewWithPlugin("consulkv")
-
-func Set() {
-
-}

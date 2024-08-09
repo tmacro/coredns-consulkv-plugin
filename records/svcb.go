@@ -18,11 +18,10 @@ type SVCBRecord struct {
 
 type HTTPSRecord = SVCBRecord
 
-func AppendSVCBRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage, recordType uint16) bool {
+func AppendSVCBRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage, recordType uint16) (bool, error) {
 	var svcbs []SVCBRecord
 	if err := json.Unmarshal(value, &svcbs); err != nil {
-		logging.Log.Errorf("Error parsing JSON for SVCB/HTTPS record: %v", err)
-		return false
+		return false, err
 	}
 
 	for _, svcb := range svcbs {
@@ -70,7 +69,7 @@ func AppendSVCBRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessag
 		msg.Answer = append(msg.Answer, rr)
 	}
 
-	return len(svcbs) > 0
+	return len(svcbs) > 0, nil
 }
 
 func SVCBKeyToCode(key string) dns.SVCBKey {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/miekg/dns"
-	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
 type SRVRecord struct {
@@ -14,11 +13,10 @@ type SRVRecord struct {
 	Weight   uint16 `json:"weight"`
 }
 
-func AppendSRVRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) bool {
+func AppendSRVRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage) (bool, error) {
 	var records []SRVRecord
 	if err := json.Unmarshal(value, &records); err != nil {
-		logging.Log.Errorf("Error parsing JSON for SRV record: %v", err)
-		return false
+		return false, err
 	}
 
 	for _, record := range records {
@@ -32,5 +30,5 @@ func AppendSRVRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage
 		msg.Answer = append(msg.Answer, rr)
 	}
 
-	return len(records) > 0
+	return len(records) > 0, nil
 }

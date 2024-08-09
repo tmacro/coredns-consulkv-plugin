@@ -8,18 +8,18 @@ import (
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *Record) bool {
+func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
 	ttl := GetDefaultTTL(record)
 	foundRequestedType := false
 
 	logging.Log.Debugf("Amount of available records: %v", len(record.Records))
 
-	zoneName, _ := c.GetZoneAndRecordName(qname)
-	soa, err := c.GetSOARecordFromConsul(zoneName)
+	zname, _ := c.GetZoneAndRecord(qname)
+	soa, err := c.GetSOARecordFromConsul(zname)
 
 	if err != nil {
 		logging.Log.Errorf("Error loading SOA record: %v", err)
-		invalidResponses.WithLabelValues(zoneName).Inc()
+		IncrementMetricsPluginErrorsTotal("SOA_GET")
 	}
 
 	for _, rec := range record.Records {
@@ -28,44 +28,98 @@ func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record 
 		switch rec.Type {
 		case "NS":
 			if qtype == dns.TypeNS {
-				foundRequestedType = records.AppendNSRecords(msg, qname, ttl, rec.Value)
+				found, err := records.AppendNSRecords(msg, qname, ttl, rec.Value)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for NS record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
+
 		case "SVCB":
 			if qtype == dns.TypeSVCB {
-				foundRequestedType = records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeSVCB)
+				found, err := records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeSVCB)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for SVCB record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
+
 		case "HTTPS":
 			if qtype == dns.TypeHTTPS {
-				foundRequestedType = records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeHTTPS)
+				found, err := records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeHTTPS)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for HTTPS record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
+
 		case "SOA":
 			if qtype == dns.TypeSOA || qtype == dns.TypeANY {
 				foundRequestedType = records.AppendSOARecord(msg, qname, soa)
 			}
+
 		case "A":
 			if qtype == dns.TypeA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
-				foundRequestedType = records.AppendARecords(msg, qname, ttl, rec.Value)
+				found, err := records.AppendARecords(msg, qname, ttl, rec.Value)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for A record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
+
 		case "AAAA":
 			if qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
-				foundRequestedType = records.AppendAAAARecords(msg, qname, ttl, rec.Value)
+				found, err := records.AppendAAAARecords(msg, qname, ttl, rec.Value)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for AAAA record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
+
 		case "CNAME":
 			if qtype == dns.TypeCNAME || qtype == dns.TypeA || qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
 				foundRequestedType = c.AppendCNAMERecords(msg, qname, qtype, ttl, rec.Value)
 			}
+
 		case "PTR":
 			if qtype == dns.TypePTR {
-				foundRequestedType = records.AppendPTRRecords(msg, qname, ttl, rec.Value)
+				found, err := records.AppendPTRRecords(msg, qname, ttl, rec.Value)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for PTR record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
 
 		case "SRV":
 			if qtype == dns.TypeSRV {
-				foundRequestedType = records.AppendSRVRecords(msg, qname, ttl, rec.Value)
+				found, err := records.AppendSRVRecords(msg, qname, ttl, rec.Value)
+				if err != nil {
+					logging.Log.Errorf("Error parsing JSON for SRV record: %v", err)
+					IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+				}
+
+				foundRequestedType = found
 			}
 
 		case "TXT":
-			txtAnswered := records.AppendTXTRecords(msg, qtype, qname, ttl, rec.Value)
+			txtAnswered, err := records.AppendTXTRecords(msg, qtype, qname, ttl, rec.Value)
+			if err != nil {
+				logging.Log.Errorf("Error parsing JSON for TXT record: %v", err)
+				IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+			}
+
 			if txtAnswered {
 				foundRequestedType = txtAnswered
 			}
@@ -87,6 +141,8 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	var alias string
 	if err := json.Unmarshal(value, &alias); err != nil {
 		logging.Log.Errorf("Error parsing JSON for CNAME record: %v", err)
+		IncrementMetricsPluginErrorsTotal("JSON_UNMARSHAL")
+
 		return false
 	}
 
@@ -96,28 +152,30 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 	msg.Answer = append(msg.Answer, rr)
 
-	zoneName, recordName := c.GetZoneAndRecordName(alias)
-	if zoneName == "" {
-		logging.Log.Debugf("Zone %s not in configured zones %s, passing to next plugin", zoneName, c.Zones)
+	zname, rname := c.GetZoneAndRecord(alias)
+	if zname == "" {
+		logging.Log.Debugf("Zone %s not in configured zones %s, skipping alias lookup", zname, c.Zones)
 	}
 
-	logging.Log.Debugf("Record: %s, Zone: %s", recordName, zoneName)
+	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
+	IncrementMetricsQueryRequestsTotal(zname, qtype)
 
-	key := BuildConsulKey(c.Prefix, zoneName, recordName)
-
-	logging.Log.Debugf("Constructed key: %s", key)
+	key := c.BuildConsulKey(zname, rname)
+	logging.Log.Debugf("Constructed Consul key '%s'", key)
 
 	record, err := c.GetRecordFromConsul(key)
 	if err != nil {
-		logging.Log.Errorf("Error resolving CNAME alias %s: %v", recordName, err)
-		return true
+		logging.Log.Errorf("Error receiving key '%s' from consul: %v", key, err)
+		IncrementMetricsPluginErrorsTotal("CONSUL_GET")
+
+		return false
 	}
 
 	if record != nil {
-		return c.HandleRecord(msg, recordName, qtype, record)
+		return c.HandleRecord(msg, rname, dns.TypeA, record)
 	}
 
-	logging.Log.Debugf("No record found for alias %s and type %s", recordName, dns.TypeToString[qtype])
+	logging.Log.Debugf("No record found for alias '%s' and type '%s'", alias, dns.TypeToString[qtype])
 
 	return true
 }
