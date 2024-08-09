@@ -160,8 +160,9 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
 	IncrementMetricsQueryRequestsTotal(zname, qtype)
 
-	key := c.BuildConsulKey(zname, rname)
-	logging.Log.Debugf("Constructed Consul key '%s'", key)
+	key := BuildConsulKey(c.Prefix, zoneName, recordName)
+
+	logging.Log.Debugf("Constructed key: %s", key)
 
 	record, err := c.GetRecordFromConsul(key)
 	if err != nil {
@@ -172,7 +173,7 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 
 	if record != nil {
-		return c.HandleRecord(msg, rname, dns.TypeA, record)
+		return c.HandleRecord(msg, recordName, qtype, record)
 	}
 
 	logging.Log.Debugf("No record found for alias '%s' and type '%s'", alias, dns.TypeToString[qtype])

@@ -29,54 +29,48 @@ func (c ConsulKV) ServeDNS(ctx context.Context, writer dns.ResponseWriter, r *dn
 	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
 	IncrementMetricsQueryRequestsTotal(zname, qtype)
 
-	key := c.BuildConsulKey(zname, rname)
-	logging.Log.Debugf("Constructed Consul key '%s'", key)
+	key := BuildConsulKey(c.Prefix, zoneName, recordName)
+
+	logging.Log.Debugf("Constructed key: %s", key)
 
 	record, err := c.GetRecordFromConsul(key)
 	if err != nil {
-		logging.Log.Errorf("Error receiving key '%s' from consul: %v", key, err)
-		IncrementMetricsPluginErrorsTotal("CONSUL_GET")
-
-		return HandleConsulError(zname, r, writer, err)
+		return c.HandleConsulError(zoneName, r, w, err)
 	}
 
 	if record == nil {
-		return c.HandleMissingRecord(qname, qtype, zname, rname, ctx, writer, r)
+		return c.HandleMissingRecord(qname, qtype, zoneName, recordName, ctx, w, r)
 	}
 
 	return c.CreateDNSResponse(qname, qtype, record, ctx, r, writer)
 }
 
-func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zname string, rname string, ctx context.Context, writer dns.ResponseWriter, r *dns.Msg) (int, error) {
-	soa, err := c.GetSOARecordFromConsul(zname)
-	if err != nil {
-		logging.Log.Errorf("Error loading SOA record: %v", err)
-		IncrementMetricsPluginErrorsTotal("SOA_GET")
-		IncrementMetricsResponsesFailedTotal(zname, qtype, "ERROR")
-
-		return c.HandleError(r, dns.RcodeNameError, writer, nil)
-	}
-
-	if rname == "@" {
+func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zoneName string, recordName string,
+	ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
+	if recordName == "@" {
+		failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
 		logging.Log.Warning("No root entry found in Consul")
 		IncrementMetricsResponsesFailedTotal(zname, qtype, "NXDOMAIN")
 
-		return c.HandleNXDomain(qname, soa, r, writer)
+		return c.HandleError(r, dns.RcodeNameError, w, nil)
 	}
 
-	key := c.BuildConsulKey(zname, "*")
-
+	key := BuildConsulKey(c.Prefix, zoneName, "*")
 	record, err := c.GetRecordFromConsul(key)
 	if err != nil {
-		logging.Log.Errorf("Error receiving key '%s' from consul: %v", key, err)
-		IncrementMetricsPluginErrorsTotal("CONSUL_GET")
-
-		return HandleConsulError(zname, r, writer, err)
+		return c.HandleConsulError(zoneName, r, w, err)
 	}
 
 	if record == nil {
-		logging.Log.Warningf("No record found for zone '%s' and record '%s'", zname, rname)
-		IncrementMetricsResponsesFailedTotal(zname, qtype, "NXDOMAIN")
+		logging.Log.Warningf("No value found in Consul for key: %s", key)
+		failedQueries.WithLabelValues(dns.Fqdn(zoneName)).Inc()
+
+		soa, err := c.GetSOARecordFromConsul(zoneName)
+		if err != nil {
+			logging.Log.Errorf("Error loading SOA record: %v", err)
+
+			return c.HandleError(r, dns.RcodeNameError, w, nil)
+		}
 
 		return c.HandleNXDomain(qname, soa, r, writer)
 	}
@@ -93,13 +87,13 @@ func (c ConsulKV) CreateDNSResponse(qname string, qtype uint16, record *records.
 	zname, _ := c.GetZoneAndRecord(qname)
 
 	if handled && len(msg.Answer) > 0 {
-		return c.SendDNSResponse(zname, msg, writer)
+		return c.SendDNSResponse(zoneName, msg, w)
 	}
 
 	return c.HandleNoMatchingRecords(qname, qtype, ctx, r, writer)
 }
 
-func (c ConsulKV) SendDNSResponse(zname string, msg *dns.Msg, writer dns.ResponseWriter) (int, error) {
+func (c ConsulKV) SendDNSResponse(zoneName string, msg *dns.Msg, w dns.ResponseWriter) (int, error) {
 	logging.Log.Debugf("Sending DNS response with %d answers", len(msg.Answer))
 	err := writer.WriteMsg(msg)
 
@@ -110,35 +104,24 @@ func (c ConsulKV) SendDNSResponse(zname string, msg *dns.Msg, writer dns.Respons
 		return c.HandleError(msg, dns.RcodeServerFailure, writer, err)
 	}
 
-	for _, q := range msg.Question {
-		IncrementMetricsResponsesSuccessfulTotal(zname, q.Qtype)
+		return c.HandleError(msg, dns.RcodeServerFailure, w, err)
 	}
 
 	return dns.RcodeSuccess, nil
 }
 
-func (c ConsulKV) HandleNoMatchingRecords(qname string, qtype uint16, ctx context.Context, request *dns.Msg, writer dns.ResponseWriter) (int, error) {
-	zname, rname := c.GetZoneAndRecord(qname)
+func (c ConsulKV) HandleNoMatchingRecords(qname string, qtype uint16, ctx context.Context, r *dns.Msg, w dns.ResponseWriter) (int, error) {
+	logging.Log.Infof("Requested record type %s not found for %s", dns.TypeToString[qtype], qname)
+	failedQueries.WithLabelValues(dns.Fqdn(qname)).Inc()
 
-	logging.Log.Infof("No matching record was found for zone '%s' and record '%s' with code '%s'",
-		zname, rname, dns.TypeToString[qtype])
+	zoneName, _ := c.GetZoneAndRecordName(qname)
+	soa, err := c.GetSOARecordFromConsul(zoneName)
 
-	soa, err := c.GetSOARecordFromConsul(zname)
-	if err != nil {
-		logging.Log.Errorf("Error loading SOA record: %v", err)
-		IncrementMetricsPluginErrorsTotal("SOA_GET")
-		IncrementMetricsResponsesFailedTotal(zname, qtype, "ERROR")
-
-		return c.HandleError(request, dns.RcodeNameError, writer, nil)
+	if err == nil && soa != nil {
+		return c.HandleNoData(qname, soa, r, w)
 	}
 
-	if soa != nil {
-		IncrementMetricsResponsesFailedTotal(zname, qtype, "NODATA")
-		return c.HandleNoData(qname, soa, request, writer)
-	}
-
-	IncrementMetricsResponsesFailedTotal(zname, qtype, "NXDOMAIN")
-	return c.HandleNXDomain(qname, soa, request, writer)
+	return c.HandleNXDomain(qname, soa, r, w)
 }
 
 func (c ConsulKV) HandleNXDomain(qname string, soa *records.SOARecord, request *dns.Msg, writer dns.ResponseWriter) (int, error) {
