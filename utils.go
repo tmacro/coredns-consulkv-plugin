@@ -23,19 +23,6 @@ func PrepareResponseReply(request *dns.Msg, recursionAvailable bool) *dns.Msg {
 	return m
 }
 
-func PrepareResponseRcode(request *dns.Msg, rcode int, recursionAvailable bool) *dns.Msg {
-	m := new(dns.Msg)
-	m.SetRcode(request, rcode)
-	m.Authoritative = true
-	m.RecursionAvailable = recursionAvailable
-
-	return m
-}
-
-func BuildConsulKey(prefix, zone, record string) string {
-	return prefix + "/" + zone + "/" + record
-}
-
 func GetDefaultSOA(zoneName string) *records.SOARecord {
 	return &records.SOARecord{
 		MNAME:   "ns." + zoneName,
