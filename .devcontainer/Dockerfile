@@ -25,3 +25,4 @@ ENV GOPATH /go
 ENV PATH $PATH:/go/bin
 
 WORKDIR /workspace
+RUN chown $USERNAME:$USERNAME -R /workspace

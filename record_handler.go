@@ -8,7 +8,7 @@ import (
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *Record) bool {
+func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
 	ttl := GetDefaultTTL(record)
 	foundRequestedType := false
 
@@ -30,30 +30,37 @@ func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record 
 			if qtype == dns.TypeNS {
 				foundRequestedType = records.AppendNSRecords(msg, qname, ttl, rec.Value)
 			}
+
 		case "SVCB":
 			if qtype == dns.TypeSVCB {
 				foundRequestedType = records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeSVCB)
 			}
+
 		case "HTTPS":
 			if qtype == dns.TypeHTTPS {
 				foundRequestedType = records.AppendSVCBRecords(msg, qname, ttl, rec.Value, dns.TypeHTTPS)
 			}
+
 		case "SOA":
 			if qtype == dns.TypeSOA || qtype == dns.TypeANY {
 				foundRequestedType = records.AppendSOARecord(msg, qname, soa)
 			}
+
 		case "A":
 			if qtype == dns.TypeA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
 				foundRequestedType = records.AppendARecords(msg, qname, ttl, rec.Value)
 			}
+
 		case "AAAA":
 			if qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
 				foundRequestedType = records.AppendAAAARecords(msg, qname, ttl, rec.Value)
 			}
+
 		case "CNAME":
 			if qtype == dns.TypeCNAME || qtype == dns.TypeA || qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
 				foundRequestedType = c.AppendCNAMERecords(msg, qname, qtype, ttl, rec.Value)
 			}
+
 		case "PTR":
 			if qtype == dns.TypePTR {
 				foundRequestedType = records.AppendPTRRecords(msg, qname, ttl, rec.Value)
@@ -103,7 +110,7 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 
 	logging.Log.Debugf("Record: %s, Zone: %s", recordName, zoneName)
 
-	key := BuildConsulKey(c.Prefix, zoneName, recordName)
+	key := c.BuildConsulKey(zoneName, recordName)
 
 	logging.Log.Debugf("Constructed key: %s", key)
 
@@ -114,7 +121,7 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 
 	if record != nil {
-		return c.HandleRecord(msg, recordName, qtype, record)
+		return c.HandleRecord(msg, recordName, dns.TypeA, record)
 	}
 
 	logging.Log.Debugf("No record found for alias %s and type %s", recordName, dns.TypeToString[qtype])

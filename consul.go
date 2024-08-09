@@ -3,13 +3,32 @@ package consulkv
 import (
 	"encoding/json"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/miekg/dns"
 	"github.com/mwantia/coredns-consulkv-plugin/logging"
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
-	kv, _, err := c.Client.KV().Get(key, nil)
+func (conf *ConsulKV) CreateConsulClient() error {
+	def := api.DefaultConfig()
+	def.Address = conf.Address
+	def.Token = conf.Token
+
+	client, err := api.NewClient(def)
+	if err != nil {
+		return nil
+	}
+
+	conf.Client = client
+	return nil
+}
+
+func (conf ConsulKV) BuildConsulKey(zone, record string) string {
+	return conf.Prefix + "/" + zone + "/" + record
+}
+
+func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
+	kv, _, err := conf.Client.KV().Get(key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -17,7 +36,7 @@ func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
 		return nil, nil
 	}
 
-	var record Record
+	var record records.Record
 	err = json.Unmarshal(kv.Value, &record)
 	if err != nil {
 		logging.Log.Errorf("Error converting json: %v", kv.Value)
@@ -28,9 +47,9 @@ func (c ConsulKV) GetRecordFromConsul(key string) (*Record, error) {
 	return &record, nil
 }
 
-func (c ConsulKV) GetSOARecordFromConsul(zoneName string) (*records.SOARecord, error) {
-	key := BuildConsulKey(c.Prefix, zoneName, "@")
-	record, err := c.GetRecordFromConsul(key)
+func (conf ConsulKV) GetSOARecordFromConsul(zoneName string) (*records.SOARecord, error) {
+	key := conf.BuildConsulKey(zoneName, "@")
+	record, err := conf.GetRecordFromConsul(key)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +71,7 @@ func (c ConsulKV) GetSOARecordFromConsul(zoneName string) (*records.SOARecord, e
 	return GetDefaultSOA(zoneName), nil
 }
 
-func (c ConsulKV) HandleConsulError(zoneName string, r *dns.Msg, w dns.ResponseWriter, e error) (int, error) {
+func HandleConsulError(zoneName string, r *dns.Msg, w dns.ResponseWriter, e error) (int, error) {
 	m := new(dns.Msg)
 	m.SetRcode(r, dns.RcodeServerFailure)
 	m.Authoritative = true

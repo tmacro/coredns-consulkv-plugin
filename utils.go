@@ -7,6 +7,24 @@ import (
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
+func PrepareResponseRcode(request *dns.Msg, rcode int, recursionAvailable bool) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetRcode(request, rcode)
+	m.Authoritative = true
+	m.RecursionAvailable = recursionAvailable
+
+	return m
+}
+
+func PrepareResponseReply(request *dns.Msg, recursionAvailable bool) *dns.Msg {
+	m := new(dns.Msg)
+	m.SetReply(request)
+	m.Authoritative = true
+	m.RecursionAvailable = recursionAvailable
+
+	return m
+}
+
 func (c ConsulKV) GetZoneAndRecordName(qname string) (string, string) {
 	qname = strings.TrimSuffix(dns.Fqdn(qname), ".")
 
@@ -26,10 +44,6 @@ func (c ConsulKV) GetZoneAndRecordName(qname string) (string, string) {
 	return "", ""
 }
 
-func BuildConsulKey(prefix, zone, record string) string {
-	return prefix + "/" + zone + "/" + record
-}
-
 func GetDefaultSOA(zoneName string) *records.SOARecord {
 	return &records.SOARecord{
 		MNAME:   "ns." + zoneName,
@@ -42,7 +56,7 @@ func GetDefaultSOA(zoneName string) *records.SOARecord {
 	}
 }
 
-func GetDefaultTTL(record *Record) int {
+func GetDefaultTTL(record *records.Record) int {
 	if record.TTL != nil {
 		return *record.TTL
 	}
