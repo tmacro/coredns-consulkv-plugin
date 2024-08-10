@@ -22,6 +22,18 @@ func IncrementMetricsPluginErrorsTotal(err string) {
 	metricsPluginErrorsTotal.WithLabelValues(err).Inc()
 }
 
+var metricsConsulRequestDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: plugin.Namespace,
+	Subsystem: metricsSubsystem,
+	Name:      "consul_request_duration_seconds",
+	Help:      "Histogram of the time (in seconds) each request to Consul took.",
+	Buckets:   []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1},
+}, []string{"status"})
+
+func IncrementMetricsConsulRequestDurationSeconds(status string, duration float64) {
+	metricsConsulRequestDurationSeconds.WithLabelValues(status).Observe(duration)
+}
+
 var metricsQueryRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: plugin.Namespace,
 	Subsystem: metricsSubsystem,
@@ -31,7 +43,7 @@ var metricsQueryRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 func IncrementMetricsQueryRequestsTotal(zone string, qtype uint16) {
 	t := dns.TypeToString[qtype]
-	metricsQueryRequestsTotal.WithLabelValues(zone, t).Inc()
+	metricsQueryRequestsTotal.WithLabelValues(dns.Fqdn(zone), t).Inc()
 }
 
 var metricsQueryResponsesSuccessfulTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -43,7 +55,7 @@ var metricsQueryResponsesSuccessfulTotal = prometheus.NewCounterVec(prometheus.C
 
 func IncrementMetricsResponsesSuccessfulTotal(zone string, qtype uint16) {
 	t := dns.TypeToString[qtype]
-	metricsQueryResponsesSuccessfulTotal.WithLabelValues(zone, t).Inc()
+	metricsQueryResponsesSuccessfulTotal.WithLabelValues(dns.Fqdn(zone), t).Inc()
 }
 
 var metricsQueryResponsesFailedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -55,7 +67,7 @@ var metricsQueryResponsesFailedTotal = prometheus.NewCounterVec(prometheus.Count
 
 func IncrementMetricsResponsesFailedTotal(zone string, qtype uint16, err string) {
 	t := dns.TypeToString[qtype]
-	metricsQueryResponsesFailedTotal.WithLabelValues(zone, t, err).Inc()
+	metricsQueryResponsesFailedTotal.WithLabelValues(dns.Fqdn(zone), t, err).Inc()
 }
 
 var _ sync.Once

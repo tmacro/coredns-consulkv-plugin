@@ -2,6 +2,7 @@ package consulkv
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/miekg/dns"
@@ -28,11 +29,18 @@ func (conf ConsulKV) BuildConsulKey(zone, record string) string {
 }
 
 func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
+	start := time.Now()
 	kv, _, err := conf.Client.KV().Get(key, nil)
+	duration := time.Since(start).Seconds()
+
 	if err != nil {
+		IncrementMetricsConsulRequestDurationSeconds("ERROR", duration)
+
 		return nil, err
 	}
 	if kv == nil {
+		IncrementMetricsConsulRequestDurationSeconds("NODATA", duration)
+
 		return nil, nil
 	}
 
@@ -40,9 +48,12 @@ func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
 	err = json.Unmarshal(kv.Value, &record)
 	if err != nil {
 		logging.Log.Errorf("Error converting json: %v", kv.Value)
+		IncrementMetricsConsulRequestDurationSeconds("", duration)
 
 		return nil, err
 	}
+
+	IncrementMetricsConsulRequestDurationSeconds("NOERROR", duration)
 
 	return &record, nil
 }

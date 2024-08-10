@@ -18,6 +18,7 @@ func init() {
 func setup(c *caddy.Controller) error {
 	c.OnStartup(func() error {
 		prometheus.MustRegister(metricsPluginErrorsTotal)
+		prometheus.MustRegister(metricsConsulRequestDurationSeconds)
 		prometheus.MustRegister(metricsQueryRequestsTotal)
 		prometheus.MustRegister(metricsQueryResponsesSuccessfulTotal)
 		prometheus.MustRegister(metricsQueryResponsesFailedTotal)
