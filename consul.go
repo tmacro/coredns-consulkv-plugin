@@ -48,7 +48,7 @@ func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
 	err = json.Unmarshal(kv.Value, &record)
 	if err != nil {
 		logging.Log.Errorf("Error converting json: %v", kv.Value)
-		IncrementMetricsConsulRequestDurationSeconds("", duration)
+		IncrementMetricsConsulRequestDurationSeconds("ERROR", duration)
 
 		return nil, err
 	}

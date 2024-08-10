@@ -1,12 +1,13 @@
 # CoreDNS ConsulKV Plugin
 
-This plugin enables CoreDNS to use Consul's Key-Value store as a backend for DNS records. It supports both forward and reverse DNS lookups, as well as wildcard entries.
+This plugin enables CoreDNS to use Consul's Key-Value store as a backend for DNS records. \
+It supports both forward and reverse DNS lookups, as well as wildcard entries.
 
 ## Features
 
 - Use Consul KV as a DNS record store
-- Support for A and PTR records (extensible to other types)
-- Wildcard domain support
+- Support for forward and reverse DNS records
+- Wildcard and root domain support
 - Configurable TTL with default value
 - Metrics for monitoring (compatible with Prometheus)
 
@@ -35,8 +36,8 @@ Add the plugin to your CoreDNS configuration file (Corefile):
     consulkv {
         address http://127.0.0.1:8500
         prefix dns
-        token <consul-acl-token>
-        zones example.com 100.in-addr.arpa
+        token ""
+        zones example.com 0.168.192.in-addr.arpa
     }
 }
 ```
@@ -47,6 +48,9 @@ Add the plugin to your CoreDNS configuration file (Corefile):
 - `prefix`: Key prefix in Consul KV (default: `dns`)
 - `token`: Consul ACL token (optional)
 - `zones`: DNS zone to be handled by this plugin (can be specified multiple times)
+
+Just creating a zone prefix in Consul KV is not enough. \
+This plugin requires that all zones that should be handled to be defined via `zones`.
 
 ## Consul KV Structure
 
@@ -59,17 +63,17 @@ DNS records are stored in Consul's KV store with the following structure:
 For example:
 
 - `dns/example.com/www`
-- `dns/100.in-addr.arpa/86.203.96`
+- `dns/0.168.192.in-addr.arpa/1`
 
-The value for each key should be a JSON object with the following structure:
+The value for each key must be a JSON object with the following structure:
 
 ```json
 {
   "ttl": 3600,
   "records": [
     {
-      "type": "<type>",
-      "value": "<see-examples-for-details>"
+      "type": "<query-type>",
+      "value": "<see-below-for-examples>"
     }
   ]
 }
@@ -82,10 +86,10 @@ The value for each key should be a JSON object with the following structure:
 
 ## Examples
 
-2. SOA record for example.com:
+1. SOA root record with NS for example.com
 
    Key: `dns/zones/example.com/@`
-   Value:
+
    ```json
    {
      "ttl": 3600,
@@ -94,21 +98,25 @@ The value for each key should be a JSON object with the following structure:
          "type": "SOA",
          "value": {
            "mname": "ns.example.com",
-           "rname": "postmaster.example.com",
-           "serial": 2023080501,
+           "rname": "hostmaster.example.com",
+           "serial": 2024081001,
            "refresh": 7200,
            "retry": 3600,
            "expire": 1209600,
            "minimum": 3600
+         },
+         {
+           "type": "NS",
+           "value": ["ns.example.com"]
          }
        }
      ]
    }
    ```
 
-2. A record for www.example.com:
+2. A record for ns.example.com:
 
-   Key: `dns/zones/example.com/www`
+   Key: `dns/zones/example.com/ns`
    Value:
    ```json
    {
@@ -116,7 +124,7 @@ The value for each key should be a JSON object with the following structure:
      "records": [
        {
          "type": "A",
-         "value": ["192.168.1.10"]
+         "value": ["192.168.0.5"]
        }
      ]
    }
@@ -124,7 +132,7 @@ The value for each key should be a JSON object with the following structure:
 
 3. PTR record for reverse DNS:
 
-   Key: `dns/zones/100.in-addr.arpa/86.203.96`
+   Key: `dns/zones/0.168.192.in-addr.arpa/5`
    Value:
    ```json
    {
@@ -132,13 +140,13 @@ The value for each key should be a JSON object with the following structure:
      "records": [
        {
          "type": "PTR",
-         "value": ["www.example.com"]
+         "value": ["ns.example.com"]
        }
      ]
    }
    ```
 
-4. Wildcard record for *.example.com with additional TXT:
+4. Wildcard record for `*.example.com` with additional TXT:
 
    Key: `dns/zones/example.com/*`
    Value:
@@ -148,11 +156,11 @@ The value for each key should be a JSON object with the following structure:
      "records": [
        {
          "type": "A",
-         "value": ["192.168.1.100"]
+         "value": ["192.168.0.100"]
        },
        {
           "type": "TXT",
-          "value": ["This is some additional information"]
+          "value": ["Additional information displayed as TXT"]
        }
      ]
    }
@@ -182,7 +190,7 @@ The value for each key should be a JSON object with the following structure:
 
 6. CNAME record for test.example.com:
 
-   Key: `dns/zones/example.com/test`
+   Key: `dns/zones/example.com/www`
    Value:
    ```json
    {
@@ -190,7 +198,46 @@ The value for each key should be a JSON object with the following structure:
      "records": [
        {
          "type": "CNAME",
-         "value": "www.example.com"
+         "value": "example.com"
+       }
+     ]
+   }
+   ```
+
+6. HTTPS for service.example.com with additional A records:
+
+   Key: `dns/zones/example.com/service`
+   Value:
+   ```json
+   {
+     "ttl": 3600,
+     "records": [
+       {
+         "type": "A",
+         "value": ["192.168.0.10", "192.168.0.11"]
+       },
+       {
+         "type": "HTTPS",
+         "value": [
+           {
+             "priority": 1,
+             "target": "docker1.example.com",
+             "params": {
+               "alpn": "h2,http/1.1",
+               "port": "443",
+               "ipv4hint": "192.168.0.10"
+             }
+           },
+           {
+             "priority": 1,
+             "target": "docker2.example.com",
+             "params": {
+               "alpn": "h2,http/1.1",
+               "port": "443",
+               "ipv4hint": "192.168.0.11"
+             }
+           }
+         ]
        }
      ]
    }
@@ -200,9 +247,35 @@ The value for each key should be a JSON object with the following structure:
 
 This plugin exposes the following metrics for Prometheus:
 
-- `coredns_consulkv_successful_queries_total{zone, qtype}`: Count of successful DNS queries
-- `coredns_consulkv_consul_errors_total`: Count of Consul connection/query errors
-- `coredns_consulkv_invalid_responses_total`: Count of invalid DNS responses generated
+* `coredns_consulkv_plugin_errors_total{error}`: 
+  * Count the amount of errors within the plugin \
+    The list of possible errors are: 
+    * `CONSUL_GET`: Occures when ConsulKV was unable to connect to Consul
+    * `SOA_GET`: Occures when ConsulKV was unable to load any SOA entries from Consul or as default
+    * `WRITE_MSG`: Occures when ConsulKV was unable to write the response to CoreDNS due to an internal panic
+    * `JSON_UNMARSHAL`: Occures when ConsulKV was unable to unmarshal the received json value from Consul
+* `coredns_consulkv_consul_request_duration_seconds{status, le}`
+  * Histogram of the time (in seconds) each request to Consul took \
+    The list of possible statuses are:
+    * `NOERROR`: Occures when ConsulKV was successfully able to receive data from Consul
+    * `NODATA`: Occures when ConsulKV was able to receive a response from Consul but no record exists
+    * `ERROR`: Occures when ConsulKV was unable to connect to Consul
+* `coredns_consulkv_query_requests_total{zone, type}`
+  * Count the amount of queries received as request by the plugin \
+    The label `zone` defines the zonename requested in this query (Example: `example.com.`) \
+    The label `type` defines the query type that was requested (Example: `A`, `CNAME`)
+* `coredns_consulkv_query_responses_successful_total{zone, type}`
+  * Count the amount of successful queries handled and responded to by the plugin \
+    The label `zone` defines the zonename requested in this query (Example: `example.com.`) \
+    The label `type` defines the query type that was requested (Example: `A`, `CNAME`)
+* `coredns_consulkv_query_responses_failed_total{zone, type, error}`
+  * Count the amount of failed queries handled by the plugin \
+    The label `zone` defines the zonename requested in this query (Example: `example.com.`) \
+    The label `type` defines the query type that was requested (Example: `A`, `CNAME`) \
+    The list of possible errors are: 
+    * `ERROR`: Occures when ConsulKV wasn't able to complete the request due to internal errors
+    * `NODATA`: Occures when ConsulKV was unable to find a record matching the request
+    * `NXDOMAIn`: Occures when ConsulKV was unable to find a record and was unable to return any form of data, like `SOA`
 
 ## License
 
