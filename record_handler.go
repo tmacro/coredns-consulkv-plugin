@@ -158,7 +158,7 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 
 	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
-	IncrementMetricsQueryRequestsTotal(zname, qtype)
+	// IncrementMetricsQueryRequestsTotal(zname, qtype)
 
 	key := c.BuildConsulKey(zname, rname)
 	logging.Log.Debugf("Constructed Consul key '%s'", key)

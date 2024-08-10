@@ -36,6 +36,7 @@ func (c ConsulKV) ServeDNS(ctx context.Context, writer dns.ResponseWriter, r *dn
 	if err != nil {
 		logging.Log.Errorf("Error receiving key '%s' from consul: %v", key, err)
 		IncrementMetricsPluginErrorsTotal("CONSUL_GET")
+		IncrementMetricsResponsesFailedTotal(zname, qtype, "ERROR")
 
 		return HandleConsulError(zname, r, writer, err)
 	}
@@ -70,6 +71,7 @@ func (c ConsulKV) HandleMissingRecord(qname string, qtype uint16, zname string, 
 	if err != nil {
 		logging.Log.Errorf("Error receiving key '%s' from consul: %v", key, err)
 		IncrementMetricsPluginErrorsTotal("CONSUL_GET")
+		IncrementMetricsResponsesFailedTotal(zname, qtype, "ERROR")
 
 		return HandleConsulError(zname, r, writer, err)
 	}
@@ -93,19 +95,20 @@ func (c ConsulKV) CreateDNSResponse(qname string, qtype uint16, record *records.
 	zname, _ := c.GetZoneAndRecord(qname)
 
 	if handled && len(msg.Answer) > 0 {
-		return c.SendDNSResponse(zname, msg, writer)
+		return c.SendDNSResponse(zname, qtype, msg, writer)
 	}
 
 	return c.HandleNoMatchingRecords(qname, qtype, ctx, r, writer)
 }
 
-func (c ConsulKV) SendDNSResponse(zname string, msg *dns.Msg, writer dns.ResponseWriter) (int, error) {
+func (c ConsulKV) SendDNSResponse(zname string, qtype uint16, msg *dns.Msg, writer dns.ResponseWriter) (int, error) {
 	logging.Log.Debugf("Sending DNS response with %d answers", len(msg.Answer))
 	err := writer.WriteMsg(msg)
 
 	if err != nil {
 		logging.Log.Errorf("Error writing DNS response: %v", err)
 		IncrementMetricsPluginErrorsTotal("WRITE_MSG")
+		IncrementMetricsResponsesFailedTotal(zname, qtype, "ERROR")
 
 		return c.HandleError(msg, dns.RcodeServerFailure, writer, err)
 	}
@@ -134,10 +137,12 @@ func (c ConsulKV) HandleNoMatchingRecords(qname string, qtype uint16, ctx contex
 
 	if soa != nil {
 		IncrementMetricsResponsesFailedTotal(zname, qtype, "NODATA")
+
 		return c.HandleNoData(qname, soa, request, writer)
 	}
 
 	IncrementMetricsResponsesFailedTotal(zname, qtype, "NXDOMAIN")
+
 	return c.HandleNXDomain(qname, soa, request, writer)
 }
 
