@@ -1,13 +1,16 @@
 package consulkv
 
 import (
+	"context"
 	"encoding/json"
 
+	"github.com/coredns/coredns/plugin"
+	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	"github.com/mwantia/coredns-consulkv-plugin/logging"
 )
 
-func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, ttl int, value json.RawMessage) bool {
+func (c *ConsulKV) AppendCNAMERecords(ctx context.Context, msg *dns.Msg, qname string, qtype uint16, ttl int, value json.RawMessage) bool {
 	var alias string
 	if err := json.Unmarshal(value, &alias); err != nil {
 		logging.Log.Errorf("Error parsing JSON for CNAME record: %v", err)
@@ -30,7 +33,9 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 
 	zname, rname := c.GetZoneAndRecord(alias)
 	if zname == "" {
-		logging.Log.Debugf("Zone %s not in configured zones %s, skipping alias lookup", zname, c.Zones)
+		logging.Log.Debugf("Zone %s not in configured zones %s, passing to next plugin", zname, c.Zones)
+
+		return c.handleExternalCNAME(ctx, msg, alias, qtype)
 	}
 
 	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
@@ -48,10 +53,25 @@ func (c *ConsulKV) AppendCNAMERecords(msg *dns.Msg, qname string, qtype uint16, 
 	}
 
 	if record != nil {
-		return c.HandleRecord(msg, rname, dns.TypeA, record)
+		return c.HandleRecord(ctx, msg, rname, dns.TypeA, record)
 	}
 
 	logging.Log.Debugf("No record found for alias '%s' and type '%s'", alias, dns.TypeToString[qtype])
 
 	return true
+}
+
+func (c *ConsulKV) handleExternalCNAME(ctx context.Context, msg *dns.Msg, alias string, qtype uint16) bool {
+	logging.Log.Debugf("Resolving external CNAME target: %s", alias)
+
+	request := request.Request{W: &ResponseWriterWrapper{WrappedMsg: msg}, Req: new(dns.Msg)}
+	request.Req.SetQuestion(dns.Fqdn(alias), qtype)
+
+	_, err := plugin.NextOrFailure(c.Name(), c.Next, ctx, request.W, request.Req)
+	if err != nil {
+		logging.Log.Errorf("Error in external resolution: %v", err)
+		return false
+	}
+
+	return len(msg.Answer) > len(msg.Answer)-1
 }

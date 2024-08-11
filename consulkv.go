@@ -91,7 +91,7 @@ func (c ConsulKV) CreateDNSResponse(qname string, qtype uint16, record *records.
 
 	logging.Log.Debugf("Creating DNS response for %s", qname)
 
-	handled := c.HandleRecord(msg, qname, qtype, record)
+	handled := c.HandleRecord(ctx, msg, qname, qtype, record)
 	zname, _ := c.GetZoneAndRecord(qname)
 
 	if handled && len(msg.Answer) > 0 {

@@ -1,12 +1,14 @@
 package consulkv
 
 import (
+	"context"
+
 	"github.com/miekg/dns"
 	"github.com/mwantia/coredns-consulkv-plugin/logging"
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
+func (c ConsulKV) HandleRecord(ctx context.Context, msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
 	ttl := GetDefaultTTL(record)
 	foundRequestedType := false
 
@@ -24,6 +26,11 @@ func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record 
 		logging.Log.Debugf("Searching record for type %s", rec.Type)
 
 		switch rec.Type {
+		case "CNAME":
+			if qtype == dns.TypeCNAME || qtype == dns.TypeA || qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
+				foundRequestedType = c.AppendCNAMERecords(ctx, msg, qname, qtype, ttl, rec.Value)
+			}
+
 		case "NS":
 			if qtype == dns.TypeNS {
 				found, err := records.AppendNSRecords(msg, qname, ttl, rec.Value)
@@ -82,11 +89,6 @@ func (c ConsulKV) HandleRecord(msg *dns.Msg, qname string, qtype uint16, record 
 				}
 
 				foundRequestedType = found
-			}
-
-		case "CNAME":
-			if qtype == dns.TypeCNAME || qtype == dns.TypeA || qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
-				foundRequestedType = c.AppendCNAMERecords(msg, qname, qtype, ttl, rec.Value)
 			}
 
 		case "PTR":
