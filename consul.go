@@ -30,7 +30,8 @@ func (conf ConsulKV) BuildConsulKey(zone, record string) string {
 
 func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
 	start := time.Now()
-	kv, _, err := conf.Client.KV().Get(key, nil)
+	options := conf.CreateQueryOptions()
+	kv, _, err := conf.Client.KV().Get(key, options)
 	duration := time.Since(start).Seconds()
 
 	if err != nil {
@@ -56,6 +57,23 @@ func (conf ConsulKV) GetRecordFromConsul(key string) (*records.Record, error) {
 	IncrementMetricsConsulRequestDurationSeconds("NOERROR", duration)
 
 	return &record, nil
+}
+
+func (conf ConsulKV) CreateQueryOptions() *api.QueryOptions {
+	options := &api.QueryOptions{
+		UseCache:          true,
+		MaxAge:            time.Minute,
+		StaleIfError:      10 * time.Second,
+		RequireConsistent: false,
+	}
+
+	if conf.NoCache {
+		options.UseCache = false
+		options.RequireConsistent = true
+		options.MaxAge = 0
+	}
+
+	return options
 }
 
 func (conf ConsulKV) GetSOARecordFromConsul(zoneName string) (*records.SOARecord, error) {

@@ -10,19 +10,23 @@ import (
 )
 
 type ConsulKV struct {
-	Next    plugin.Handler
-	Client  *api.Client
-	Prefix  string
-	Address string
-	Token   string
-	Zones   []string
+	Next         plugin.Handler
+	Client       *api.Client
+	Prefix       string
+	Address      string
+	Token        string
+	Zones        []string
+	NoCache      bool
+	NoFlattening bool
 }
 
 func CreateConfig() *ConsulKV {
 	conf := &ConsulKV{
-		Prefix:  "dns",
-		Address: "http://127.0.0.1:8500",
-		Zones:   []string{},
+		Prefix:       "dns",
+		Address:      "http://127.0.0.1:8500",
+		Zones:        []string{},
+		NoCache:      false,
+		NoFlattening: false,
 	}
 
 	return conf
@@ -76,6 +80,12 @@ func LoadCorefile(conf *ConsulKV, c *caddy.Controller) error {
 						return c.ArgErr()
 					}
 					conf.Zones = append(conf.Zones, args...)
+
+				case "no_cache":
+					conf.NoCache = true
+
+				case "no_flattening":
+					conf.NoFlattening = true
 
 				default:
 					if c.Val() != "}" {

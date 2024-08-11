@@ -15,19 +15,21 @@ func AppendPTRRecords(msg *dns.Msg, qname string, ttl int, value json.RawMessage
 	}
 
 	for _, domain := range domains {
-		if !IsValidDomain(domain) {
-			logging.Log.Warningf("Invalid domain in PTR record: %s", domain)
+		if domain != "" {
+			if !IsValidDomain(domain) {
+				logging.Log.Warningf("Invalid domain in PTR record: %s", domain)
 
-		} else {
-			rr := &dns.PTR{
-				Hdr: dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: uint32(ttl)},
-				Ptr: dns.Fqdn(domain),
+			} else {
+				rr := &dns.PTR{
+					Hdr: dns.RR_Header{Name: dns.Fqdn(qname), Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: uint32(ttl)},
+					Ptr: dns.Fqdn(domain),
+				}
+				msg.Answer = append(msg.Answer, rr)
 			}
-			msg.Answer = append(msg.Answer, rr)
 		}
 	}
 
-	return len(msg.Answer) > 0, nil
+	return len(domains) > 0, nil
 }
 
 func IsValidDomain(domain string) bool {
