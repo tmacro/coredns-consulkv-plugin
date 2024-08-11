@@ -9,24 +9,32 @@ import (
 	"github.com/miekg/dns"
 )
 
+type FlatteningType string
+
+const (
+	Flattening_None  FlatteningType = "none"
+	Flattening_Local FlatteningType = "local"
+	Flattening_Full  FlatteningType = "full"
+)
+
 type ConsulKV struct {
-	Next         plugin.Handler
-	Client       *api.Client
-	Prefix       string
-	Address      string
-	Token        string
-	Zones        []string
-	NoCache      bool
-	NoFlattening bool
+	Next       plugin.Handler
+	Client     *api.Client
+	Prefix     string
+	Address    string
+	Token      string
+	Zones      []string
+	NoCache    bool
+	Flattening FlatteningType
 }
 
 func CreateConfig() *ConsulKV {
 	conf := &ConsulKV{
-		Prefix:       "dns",
-		Address:      "http://127.0.0.1:8500",
-		Zones:        []string{},
-		NoCache:      false,
-		NoFlattening: false,
+		Prefix:     "dns",
+		Address:    "http://127.0.0.1:8500",
+		Zones:      []string{},
+		Flattening: Flattening_Local,
+		NoCache:    false,
 	}
 
 	return conf
@@ -81,11 +89,22 @@ func LoadCorefile(conf *ConsulKV, c *caddy.Controller) error {
 					}
 					conf.Zones = append(conf.Zones, args...)
 
+				case "flattening":
+					if !c.NextArg() {
+						return c.ArgErr()
+					}
+
+					flatteningtype := c.Val()
+					switch FlatteningType(flatteningtype) {
+					case Flattening_None, Flattening_Local, Flattening_Full:
+						conf.Flattening = FlatteningType(flatteningtype)
+
+					default:
+						return c.Errf("invalid flattening mode: %s", flatteningtype)
+					}
+
 				case "no_cache":
 					conf.NoCache = true
-
-				case "no_flattening":
-					conf.NoFlattening = true
 
 				default:
 					if c.Val() != "}" {

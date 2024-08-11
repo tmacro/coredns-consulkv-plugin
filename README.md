@@ -49,7 +49,10 @@ Add the plugin to your CoreDNS configuration file (Corefile):
 - `token`: Consul ACL token (optional)
 - `zones`: DNS zone to be handled by this plugin (can be specified multiple times)
 - `no_cache`: Disables the internal cache of the Consul client
-- `no_flattening`: Disables CNAME flattening so only the CNAME record will be returned
+- `flattening`: CNAME flattening mode (optional, default: `local`)
+  - `none`: No CNAME flattening, returns CNAME record immediately
+  - `local`: Flatten CNAMEs only for records managed by this plugin
+  - `full`: Flatten all CNAMEs, including external ones (uses `plugin.NextOrFailure` for external resolution)
 
 Just creating a zone prefix in Consul KV is not enough. \
 This plugin requires that all zones that should be handled to be defined via `zones`.

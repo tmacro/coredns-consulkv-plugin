@@ -25,7 +25,7 @@ func (c *ConsulKV) AppendCNAMERecords(ctx context.Context, msg *dns.Msg, qname s
 	}
 	msg.Answer = append(msg.Answer, rr)
 
-	if c.NoFlattening {
+	if c.Flattening == Flattening_None {
 		logging.Log.Debugf("CNAME flattening disabled; Only returning CNAME record for '%s'", alias)
 
 		return true
@@ -33,9 +33,13 @@ func (c *ConsulKV) AppendCNAMERecords(ctx context.Context, msg *dns.Msg, qname s
 
 	zname, rname := c.GetZoneAndRecord(alias)
 	if zname == "" {
-		logging.Log.Debugf("Zone %s not in configured zones %s, passing to next plugin", zname, c.Zones)
+		if c.Flattening == Flattening_Full {
+			logging.Log.Debugf("Zone %s not in configured zones %s, passing to next plugin ", zname, c.Zones)
+			return c.handleExternalCNAME(ctx, msg, alias, qtype)
+		}
 
-		return c.handleExternalCNAME(ctx, msg, alias, qtype)
+		logging.Log.Debugf("Zone %s not in configured zones %s, skipping CNAME flattening", zname, c.Zones)
+		return true
 	}
 
 	logging.Log.Debugf("Received new request for zone '%s' and record '%s' with code '%s", zname, rname, dns.TypeToString[qtype])
