@@ -12,6 +12,7 @@ It supports both forward and reverse DNS lookups, as well as wildcard entries.
 ## Features
 
 - Use Consul KV as a DNS record store
+- Real-time configuration updates via Consul KV
 - Support for forward and reverse DNS records
 - Wildcard and root domain support
 - Configurable TTL with default value
@@ -35,6 +36,8 @@ go build
 
 ## Configuration
 
+### Plugin Configuration Options
+
 Add the plugin to your CoreDNS configuration file (Corefile):
 
 ```corefile
@@ -46,6 +49,16 @@ Add the plugin to your CoreDNS configuration file (Corefile):
     }
 }
 ```
+
+Configuration options:
+- `address`: Consul HTTP address (default: `http://127.0.0.1:8500`)
+- `token`: Consul ACL token (optional)
+- `kv_prefix`: Consul KV key for plugin configuration (default: `dns`)
+
+### Consul KV Configuration
+
+The plugin configuration is stored in Consul KV at the specified `<kv_prefix>/config`. \
+The configuration must be a JSON object with the following structure:
 
 ```json
 {
@@ -62,27 +75,25 @@ Add the plugin to your CoreDNS configuration file (Corefile):
 }
 ```
 
-### Configuration Options
-
-- `address`: Consul HTTP address (default: `http://localhost:8500`)
-- `prefix`: Key prefix in Consul KV (default: `dns`)
-- `token`: Consul ACL token (optional)
+Configuration options:
 - `zones`: DNS zone to be handled by this plugin (can be specified multiple times)
-- `no_cache`: Disables the internal cache of the Consul client
 - `flattening`: CNAME flattening mode (optional, default: `local`)
   - `none`: No CNAME flattening, returns CNAME record immediately
   - `local`: Flatten CNAMEs only for records managed by this plugin
   - `full`: Flatten all CNAMEs, including external ones (uses `plugin.NextOrFailure` for external resolution)
+- `consul_cache`: Defines the internal cache used by the Consul client
+
+The plugin watches for changes to the configuration in Consul KV and applies updates in real-time without requiring a CoreDNS restart. \
 
 Just creating a zone prefix in Consul KV is not enough. \
-This plugin requires that all zones that should be handled to be defined via `zones`.
+This plugin requires that all zones that should be handled to be defined under `zones`.
 
 ## Consul KV Structure
 
 DNS records are stored in Consul's KV store with the following structure:
 
 ```
-<prefix>/<zone>/<record>
+<kv_prefix>/zones/<zone>/<record>
 ```
 
 For example:
@@ -279,6 +290,11 @@ This plugin exposes the following metrics for Prometheus:
     * `SOA_GET`: Occures when ConsulKV was unable to load any SOA entries from Consul or as default
     * `WRITE_MSG`: Occures when ConsulKV was unable to write the response to CoreDNS due to an internal panic
     * `JSON_UNMARSHAL`: Occures when ConsulKV was unable to unmarshal the received json value from Consul
+* `coredns_consulkv_consul_config_updated_total{error}`: 
+  * Count the amount of times the config was updated from the Consul key/value \
+    The list of possible errors are:
+    * `NOERROR`: Occures when ConsulKV was successfully able to receive data from Consul
+    * `ERROR`:  Occures when ConsulKV was unable to connect to Consul, or the data was invalid
 * `coredns_consulkv_consul_request_duration_seconds{status, le}`
   * Histogram of the time (in seconds) each request to Consul took \
     The list of possible statuses are:
