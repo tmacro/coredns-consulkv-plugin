@@ -22,6 +22,17 @@ func IncrementMetricsPluginErrorsTotal(err string) {
 	metricsPluginErrorsTotal.WithLabelValues(err).Inc()
 }
 
+var metricsConsulConfigUpdatedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: plugin.Namespace,
+	Subsystem: metricsSubsystem,
+	Name:      "consul_config_updated_total",
+	Help:      "Count the amount of times the config was updated from the Consul key/value.",
+}, []string{"error"})
+
+func IncrementMetricsConsulConfigUpdatedTotal(err string) {
+	metricsConsulConfigUpdatedTotal.WithLabelValues(err).Inc()
+}
+
 var metricsConsulRequestDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Namespace: plugin.Namespace,
 	Subsystem: metricsSubsystem,

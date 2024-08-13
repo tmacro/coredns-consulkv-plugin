@@ -1,6 +1,8 @@
 package consulkv
 
 import (
+	"strings"
+
 	"github.com/miekg/dns"
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
@@ -21,6 +23,25 @@ func PrepareResponseReply(request *dns.Msg, recursionAvailable bool) *dns.Msg {
 	m.RecursionAvailable = recursionAvailable
 
 	return m
+}
+
+func GetZoneAndRecord(zones []string, qname string) (string, string) {
+	qname = strings.TrimSuffix(dns.Fqdn(qname), ".")
+
+	for _, zone := range zones {
+		if strings.HasSuffix(qname, zone) {
+			record := strings.TrimSuffix(qname, zone)
+			record = strings.TrimSuffix(record, ".")
+
+			if record == "" {
+				record = "@"
+			}
+
+			return zone, record
+		}
+	}
+
+	return "", ""
 }
 
 func GetDefaultSOA(zoneName string) *records.SOARecord {

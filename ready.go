@@ -6,12 +6,12 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
-func (c ConsulKV) Ready() bool {
-	if c.Client == nil {
+func (config ConsulKVPlugin) Ready() bool {
+	if config.Consul == nil {
 		return false
 	}
 
-	_, _, err := c.Client.Health().Service("consul", "", false, &api.QueryOptions{
+	_, _, err := config.Consul.Client.Health().Service("consul", "", false, &api.QueryOptions{
 		AllowStale:        true,
 		UseCache:          true,
 		MaxAge:            1 * time.Second,

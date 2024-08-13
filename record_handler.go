@@ -8,14 +8,14 @@ import (
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
 
-func (c ConsulKV) HandleRecord(ctx context.Context, msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
+func (plug *ConsulKVPlugin) HandleRecord(ctx context.Context, msg *dns.Msg, qname string, qtype uint16, record *records.Record) bool {
 	ttl := GetDefaultTTL(record)
 	foundRequestedType := false
 
 	logging.Log.Debugf("Amount of available records: %v", len(record.Records))
 
-	zname, _ := c.GetZoneAndRecord(qname)
-	soa, err := c.GetSOARecordFromConsul(zname)
+	zname, _ := GetZoneAndRecord(plug.Config.Zones, qname)
+	soa, err := plug.Consul.GetSOARecordFromConsul(zname, plug.Config.ConsulCache)
 
 	if err != nil {
 		logging.Log.Errorf("Error loading SOA record: %v", err)
@@ -28,7 +28,7 @@ func (c ConsulKV) HandleRecord(ctx context.Context, msg *dns.Msg, qname string, 
 		switch rec.Type {
 		case "CNAME":
 			if qtype == dns.TypeCNAME || qtype == dns.TypeA || qtype == dns.TypeAAAA || (qtype == dns.TypeHTTPS && !foundRequestedType) {
-				foundRequestedType = c.AppendCNAMERecords(ctx, msg, qname, qtype, ttl, rec.Value)
+				foundRequestedType = plug.AppendCNAMERecords(ctx, msg, qname, qtype, ttl, rec.Value)
 			}
 
 		case "NS":

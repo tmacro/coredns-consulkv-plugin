@@ -1,123 +1,46 @@
 package consulkv
 
 import (
-	"strings"
-
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/plugin"
-	"github.com/hashicorp/consul/api"
-	"github.com/miekg/dns"
+	"github.com/mwantia/coredns-consulkv-plugin/types"
 )
 
-type FlatteningType string
-
-const (
-	Flattening_None  FlatteningType = "none"
-	Flattening_Local FlatteningType = "local"
-	Flattening_Full  FlatteningType = "full"
-)
-
-type ConsulKV struct {
-	Next       plugin.Handler
-	Client     *api.Client
-	Prefix     string
-	Address    string
-	Token      string
-	Zones      []string
-	NoCache    bool
-	Flattening FlatteningType
+type ConsulKVPlugin struct {
+	Next   plugin.Handler
+	Consul *ConsulConfig
+	Config *ConsulKVConfig
 }
 
-func CreateConfig() *ConsulKV {
-	conf := &ConsulKV{
-		Prefix:     "dns",
-		Address:    "http://127.0.0.1:8500",
-		Zones:      []string{},
-		Flattening: Flattening_Local,
-		NoCache:    false,
-	}
-
-	return conf
+type ConsulKVConfig struct {
+	ZonePrefix  string               `json:"zone_prefix"`
+	Zones       []string             `json:"zones"`
+	Flattening  types.FlatteningType `json:"flattening,omitempty"`
+	NoCache     bool                 `json:"no_cache,omitempty"`
+	ConsulCache *ConsulKVCache       `json:"consul_cache,omitempty"`
 }
 
-func (conf ConsulKV) GetZoneAndRecord(qname string) (string, string) {
-	qname = strings.TrimSuffix(dns.Fqdn(qname), ".")
-
-	for _, zone := range conf.Zones {
-		if strings.HasSuffix(qname, zone) {
-			record := strings.TrimSuffix(qname, zone)
-			record = strings.TrimSuffix(record, ".")
-
-			if record == "" {
-				record = "@"
-			}
-
-			return zone, record
-		}
-	}
-
-	return "", ""
+type ConsulKVCache struct {
+	UseCache   *bool `json:"use_cache,omitempty"`
+	MaxAge     *int  `json:"max_age"`
+	Consistent *bool `json:"consistent"`
 }
 
-func LoadCorefile(conf *ConsulKV, c *caddy.Controller) error {
-	for c.Next() {
-		if c.NextBlock() {
-			for {
-				switch c.Val() {
-				case "prefix":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					conf.Prefix = c.Val()
+func CreatePlugin(c *caddy.Controller) (*ConsulKVPlugin, error) {
+	plug := &ConsulKVPlugin{}
 
-				case "address":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					conf.Address = c.Val()
-
-				case "token":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					conf.Token = c.Val()
-
-				case "zones":
-					args := c.RemainingArgs()
-					if len(args) == 0 {
-						return c.ArgErr()
-					}
-					conf.Zones = append(conf.Zones, args...)
-
-				case "flattening":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-
-					flatteningtype := c.Val()
-					switch FlatteningType(flatteningtype) {
-					case Flattening_None, Flattening_Local, Flattening_Full:
-						conf.Flattening = FlatteningType(flatteningtype)
-
-					default:
-						return c.Errf("invalid flattening mode: %s", flatteningtype)
-					}
-
-				case "no_cache":
-					conf.NoCache = true
-
-				default:
-					if c.Val() != "}" {
-						return c.Errf("unknown property '%s'", c.Val())
-					}
-				}
-
-				if !c.Next() {
-					break
-				}
-			}
-		}
+	consul, err := CreateConsulConfig(c)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	config, err := consul.GetConfigFromConsul()
+	if err != nil {
+		return nil, err
+	}
+
+	plug.Consul = consul
+	plug.Config = config
+
+	return plug, nil
 }

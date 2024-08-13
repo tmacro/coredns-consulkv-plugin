@@ -6,7 +6,6 @@ require (
 	github.com/coredns/caddy v1.1.1
 	github.com/coredns/coredns v1.11.3
 	github.com/hashicorp/consul/api v1.29.2
-	github.com/joho/godotenv v1.5.1
 	github.com/miekg/dns v1.1.61
 	github.com/prometheus/client_golang v1.19.1
 )

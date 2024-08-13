@@ -4,16 +4,14 @@ import (
 	"context"
 	"log"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/joho/godotenv"
 	"github.com/mwantia/coredns-consulkv-plugin/logging"
 
+	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/coredns/coredns/plugin/test"
-	"github.com/hashicorp/consul/api"
 	"github.com/miekg/dns"
 )
 
@@ -30,15 +28,29 @@ func TestConsulKV(tst *testing.T) {
 	OverwriteStdOut()
 	clog.D.Set()
 
-	conf := CreateConfig()
+	c := caddy.NewTestController("dns", `
+		consulkv {
+		  token 93804aef-7648-c6ce-e609-4f75676bc6c3
+		}
+	`)
 
-	err := conf.LoadTestConfig()
+	plug := &ConsulKVPlugin{}
+
+	consul, err := CreateConsulConfig(c)
 	if err != nil {
-		tst.Errorf("Unable to load test config: %v", err)
+		tst.Errorf("Unable to create consul client: %v", err)
 	}
 
+	config, err := consul.GetConfigFromConsul()
+	if err != nil {
+		tst.Errorf("Unable to get config from consul: %v", err)
+	}
+
+	plug.Consul = consul
+	plug.Config = config
+
 	tests := GenerateTestCases()
-	RunTests(tst, conf, tests)
+	RunTests(tst, plug, tests)
 }
 
 func OverwriteStdOut() error {
@@ -60,44 +72,6 @@ func OverwriteStdOut() error {
 	return nil
 }
 
-func (conf *ConsulKV) LoadTestConfig() error {
-	err := godotenv.Load()
-	if err != nil {
-		return err
-	}
-
-	envPrefix := os.Getenv("CONSUL_PREFIX")
-	if envPrefix != "" {
-		conf.Prefix = envPrefix
-	}
-
-	envZones := os.Getenv("CONSUL_ZONES")
-	if envZones != "" {
-		conf.Zones = strings.Split(envZones, ",")
-	}
-
-	def := api.DefaultConfig()
-	envAddress := os.Getenv("CONSUL_ADDRESS")
-	if envAddress != "" {
-		def.Address = envAddress
-	}
-
-	envToken := os.Getenv("CONSUL_TOKEN")
-	if envToken != "" {
-		def.Token = envToken
-	}
-
-	client, err := api.NewClient(def)
-	if err != nil {
-		return err
-	}
-
-	conf.Client = client
-	conf.Next = test.ErrorHandler()
-
-	return nil
-}
-
 func GenerateTestCases() []TestCase {
 	return []TestCase{
 		{"NS", "example.com", dns.TypeNS, dns.RcodeSuccess, dns.TypeNS, "ns.example.com"},
@@ -108,7 +82,7 @@ func GenerateTestCases() []TestCase {
 	}
 }
 
-func RunTests(tst *testing.T, c *ConsulKV, tests []TestCase) {
+func RunTests(tst *testing.T, plug *ConsulKVPlugin, tests []TestCase) {
 	ctx := context.TODO()
 
 	for _, tc := range tests {
@@ -121,7 +95,7 @@ func RunTests(tst *testing.T, c *ConsulKV, tests []TestCase) {
 			req.SetQuestion(tc.queryName, tc.queryType)
 			rec := dnstest.NewRecorder(&test.ResponseWriter{})
 
-			code, err := c.ServeDNS(ctx, rec, req)
+			code, err := plug.ServeDNS(ctx, rec, req)
 
 			if err != nil {
 				tst.Errorf("Expected no error, but got: %v", err)

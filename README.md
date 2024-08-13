@@ -3,6 +3,12 @@
 This plugin enables CoreDNS to use Consul's Key-Value store as a backend for DNS records. \
 It supports both forward and reverse DNS lookups, as well as wildcard entries.
 
+> [!IMPORTANT]
+> This plugin is still actively being worked on. \
+> Expect possible changes or reworks of how this plugin functions and how the config is structured.
+>
+> Additionally, this README isn't always up-to-date, so not everything mentioned here might work as described.
+
 ## Features
 
 - Use Consul KV as a DNS record store
@@ -35,10 +41,24 @@ Add the plugin to your CoreDNS configuration file (Corefile):
 . {
     consulkv {
         address http://127.0.0.1:8500
-        prefix dns
-        token ""
-        zones example.com 0.168.192.in-addr.arpa
+        token anonymous
+        kv_prefix dns
     }
+}
+```
+
+```json
+{
+  "flattening": "local", 
+  "zones": [
+    "example.com",
+    "0.168.192.in-addr.arpa"
+  ],
+  "consul_cache": {
+    "use_cache": true,
+    "max_age": 60,
+    "consistent": true
+  }
 }
 ```
 
