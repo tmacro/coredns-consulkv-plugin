@@ -32,9 +32,11 @@ func setup(c *caddy.Controller) error {
 		return plugin.Error("consulkv", err)
 	}
 
-	err = conf.Consul.WatchConsulConfig(conf.Config)
-	if err != nil {
-		logging.Log.Warningf("Unable to create Consul watcher for '%s/config'", conf.Consul.KVPrefix)
+	if !conf.Consul.DisableWatch {
+		err = conf.Consul.WatchConsulConfig(conf.Config)
+		if err != nil {
+			logging.Log.Warningf("Unable to create Consul watcher for '%s/config'", conf.Consul.KVPrefix)
+		}
 	}
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {

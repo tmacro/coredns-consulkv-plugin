@@ -29,12 +29,12 @@ func TestConsulKV(tst *testing.T) {
 	clog.D.Set()
 
 	c := caddy.NewTestController("dns", `
-		consulkv {
-		  token 93804aef-7648-c6ce-e609-4f75676bc6c3
-		}
+		consulkv
 	`)
 
 	plug := &ConsulKVPlugin{}
+
+	LoadEnvFile(".env")
 
 	consul, err := CreateConsulConfig(c)
 	if err != nil {

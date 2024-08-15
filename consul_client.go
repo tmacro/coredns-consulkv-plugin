@@ -12,10 +12,11 @@ import (
 )
 
 type ConsulConfig struct {
-	Client   *api.Client
-	KVPrefix string
-	Address  string
-	Token    string
+	Client       *api.Client
+	KVPrefix     string
+	Address      string
+	Token        string
+	DisableWatch bool
 }
 
 func GetConsulEnvConfig() ConsulConfig {
@@ -59,37 +60,46 @@ func CreateConsulConfig(c *caddy.Controller) (*ConsulConfig, error) {
 }
 
 func LoadConsulConfig(c *caddy.Controller, consul *ConsulConfig) error {
+	n := 0
 	for c.Next() {
-		if c.NextBlock() {
-			for {
-				switch c.Val() {
-				case "address":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					consul.Address = c.Val()
+		if n > 0 {
+			return c.Err("Unable to load config")
+		}
+		n++
 
-				case "token":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					consul.Token = c.Val()
+		args := c.RemainingArgs()
+		if len(args) >= 1 {
+			for i := range args {
+				LoadEnvFile(args[i])
+			}
+		}
 
-				case "kv_prefix":
-					if !c.NextArg() {
-						return c.ArgErr()
-					}
-					consul.KVPrefix = c.Val()
+		for c.NextBlock() {
+			val := c.Val()
+			args = c.RemainingArgs()
 
-				default:
-					if c.Val() != "}" {
-						return c.Errf("unknown property '%s'", c.Val())
-					}
+			switch val {
+
+			case "address":
+				if len(args) < 1 {
+					return c.Errf("config 'address' can't be empty")
 				}
+				consul.Address = args[0]
 
-				if !c.Next() {
-					break
+			case "token":
+				if len(args) < 1 {
+					return c.Errf("config 'token' can't be empty")
 				}
+				consul.Token = args[0]
+
+			case "kv_prefix":
+				if len(args) < 1 {
+					return c.Errf("config 'kv_prefix' can't be empty")
+				}
+				consul.KVPrefix = args[0]
+
+			case "disable_watch":
+				consul.DisableWatch = true
 			}
 		}
 	}
@@ -199,6 +209,7 @@ func CreateQueryOptions(cache *ConsulKVCache) *api.QueryOptions {
 		MaxAge:            time.Minute,
 		StaleIfError:      10 * time.Second,
 		RequireConsistent: false,
+		AllowStale:        true,
 	}
 
 	if cache != nil {
@@ -210,6 +221,9 @@ func CreateQueryOptions(cache *ConsulKVCache) *api.QueryOptions {
 		}
 		if cache.Consistent != nil {
 			options.RequireConsistent = *cache.Consistent
+		}
+		if cache.AllowStale != nil {
+			options.AllowStale = *cache.AllowStale
 		}
 	}
 

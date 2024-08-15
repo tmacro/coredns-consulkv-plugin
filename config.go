@@ -24,6 +24,7 @@ type ConsulKVCache struct {
 	UseCache   *bool `json:"use_cache,omitempty"`
 	MaxAge     *int  `json:"max_age"`
 	Consistent *bool `json:"consistent"`
+	AllowStale *bool `json:"allowstale"`
 }
 
 func CreatePlugin(c *caddy.Controller) (*ConsulKVPlugin, error) {

@@ -1,11 +1,42 @@
 package consulkv
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/miekg/dns"
+	"github.com/mwantia/coredns-consulkv-plugin/logging"
 	"github.com/mwantia/coredns-consulkv-plugin/records"
 )
+
+func LoadEnvFile(path string) error {
+	if !filepath.IsAbs(path) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		path = filepath.Join(cwd, path)
+	}
+
+	err := godotenv.Load(path)
+	if err != nil {
+		logging.Log.Warningf("Unable to load environment file '%s'; Ignore if not required: %v", path, err)
+		return err
+	}
+
+	logging.Log.Infof("Loaded environment file '%s'", path)
+	return nil
+}
+
+func GetEnvOrDefault(key, defaultvalue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultvalue
+	}
+	return value
+}
 
 func PrepareResponseRcode(request *dns.Msg, rcode int, recursionAvailable bool) *dns.Msg {
 	m := new(dns.Msg)

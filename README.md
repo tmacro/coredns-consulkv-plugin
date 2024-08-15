@@ -46,6 +46,7 @@ Add the plugin to your CoreDNS configuration file (Corefile):
         address http://127.0.0.1:8500
         token anonymous
         kv_prefix dns
+        disable_watch
     }
 }
 ```
@@ -54,6 +55,7 @@ Configuration options:
 - `address`: Consul HTTP address (default: `http://127.0.0.1:8500`)
 - `token`: Consul ACL token (optional)
 - `kv_prefix`: Consul KV key for plugin configuration (default: `dns`)
+- `disable_watch`: If set, Consul KV will not watch for any updated for `dns/config`
 
 ### Consul KV Configuration
 
@@ -70,7 +72,8 @@ The configuration must be a JSON object with the following structure:
   "consul_cache": {
     "use_cache": true,
     "max_age": 60,
-    "consistent": true
+    "consistent": false,
+    "allowstale": true
   }
 }
 ```
