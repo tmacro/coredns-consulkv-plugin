@@ -41,21 +41,37 @@ go build
 Add the plugin to your CoreDNS configuration file (Corefile):
 
 ```corefile
-. {
-    consulkv {
-        address http://127.0.0.1:8500
-        token anonymous
-        kv_prefix dns
-        disable_watch
-    }
+consulkv [ENV FILES...] {
+    address http://127.0.0.1:8500
+    token anonymous
+    kv_prefix dns
+    disable_watch
 }
 ```
 
-Configuration options:
+#### Configuration options:
 - `address`: Consul HTTP address (default: `http://127.0.0.1:8500`)
 - `token`: Consul ACL token (optional)
 - `kv_prefix`: Consul KV key for plugin configuration (default: `dns`)
 - `disable_watch`: If set, Consul KV will not watch for any updated for `dns/config`
+
+#### Examples
+
+Load with all default values.
+```corefile
+consulkv
+```
+Load `.env` in current directory to use for configuration.
+```corefile
+consulkv .env
+```
+Use the available config to define the connection to Consul.
+```corefile
+consulkv {
+  address http://127.0.0.1:8500
+  token anonymous
+}
+```
 
 ### Consul KV Configuration
 
@@ -78,13 +94,17 @@ The configuration must be a JSON object with the following structure:
 }
 ```
 
-Configuration options:
+#### Configuration options:
 - `zones`: DNS zone to be handled by this plugin (can be specified multiple times)
 - `flattening`: CNAME flattening mode (optional, default: `local`)
   - `none`: No CNAME flattening, returns CNAME record immediately
   - `local`: Flatten CNAMEs only for records managed by this plugin
   - `full`: Flatten all CNAMEs, including external ones (uses `plugin.NextOrFailure` for external resolution)
 - `consul_cache`: Defines the internal cache used by the Consul client
+  - `use_cache`: Requests that the Consul agent cache results locally
+  - `max_age`: Limits how old a cached value will be returned if `use_cache` is true
+  - `consistent`: Forces the read to be fully consistent; More expensive but prevents ever performing a stale read
+  - `allowstale`: Allows any Consul server (non-leader) to service a read; Allows for lower latency and higher throughput
 
 The plugin watches for changes to the configuration in Consul KV and applies updates in real-time without requiring a CoreDNS restart. \
 
