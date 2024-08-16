@@ -38,6 +38,7 @@ jobs:
     - name: Build
       run: |
         cd coredns
+        go get github.com/mwantia/coredns-consulkv-plugin
         go generate
         GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o coredns
       env:
