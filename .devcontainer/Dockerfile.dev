@@ -1,0 +1,25 @@
+FROM golang:1.22
+
+WORKDIR /app
+
+# Install development tools
+RUN apt-get update && apt-get install -y git curl
+
+# Install Go tools
+RUN go install golang.org/x/tools/gopls@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Clone CoreDNS repository
+RUN git clone https://github.com/coredns/coredns.git
+
+WORKDIR /app/coredns
+
+# Add our plugin to plugin.cfg
+RUN echo "consulkv:github.com/mwantia/coredns-consulkv-plugin" >> plugin.cfg
+
+# Expose DNS ports
+EXPOSE 53/udp
+EXPOSE 53/tcp
+
+# Set the default command to bash
+CMD ["bash"]

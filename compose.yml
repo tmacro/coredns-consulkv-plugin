@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  coredns:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+    ports:
+      - "5301:53/udp"
+      - "5301:53/tcp"
+    volumes:
+      - ./Corefile:/app/Corefile
+    depends_on:
+      - consul
+
+  consul:
+    image: hashicorp/consul:latest
+    ports:
+      - "8501:8500"
+    command: agent -dev -client=0.0.0.0

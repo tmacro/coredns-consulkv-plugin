@@ -1,0 +1,6 @@
+. {
+  log
+  errors
+  debug
+  consulkv
+}

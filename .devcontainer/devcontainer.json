@@ -1,8 +1,17 @@
 {
     "name": "CoreDNS ConsulKV Plugin Development",
-    "dockerComposeFile": "docker-compose.yml",
-    "service": "devcontainer",
-    "workspaceFolder": "/workspace",
-    "forwardPorts": [1053, 8500],
-    "remoteUser": "vscode"
+    "dockerComposeFile": "compose.yml",
+    "service": "coredns-dev",
+    "workspaceFolder": "/app/coredns-consulkv-plugin",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+    "forwardPorts": [5301, 8501],
+    "postCreateCommand": "go mod download",
+    "remoteUser": "root"
 }

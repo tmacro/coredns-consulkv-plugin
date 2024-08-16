@@ -1,9 +1,0 @@
-.:53 {
-    consulkv {
-        address consul:8500
-        prefix dns
-        zones example.com
-    }
-    log
-    errors
-}
