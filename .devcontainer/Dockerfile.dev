@@ -3,11 +3,17 @@ FROM golang:1.22
 WORKDIR /app
 
 # Install development tools
-RUN apt-get update && apt-get install -y git curl
+RUN apt-get update && apt-get install -y git curl unzip
 
 # Install Go tools
 RUN go install golang.org/x/tools/gopls@latest
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Install Consul
+RUN curl -fsSL https://releases.hashicorp.com/consul/1.19.1/consul_1.19.1_linux_amd64.zip -o consul.zip \
+    && unzip consul.zip \
+    && mv consul /usr/local/bin/ \
+    && rm consul.zip
 
 # Clone CoreDNS repository
 RUN git clone https://github.com/coredns/coredns.git

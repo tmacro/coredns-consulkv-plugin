@@ -8,10 +8,15 @@
             "extensions": [
                 "golang.go",
                 "ms-azuretools.vscode-docker"
-            ]
+            ],
+            "settings": {
+                "terminal.integrated.env.linux": {
+                    "CONSUL_HTTP_ADDR": "http://consul:8500"
+                }
+            }
         }
     },
-    "forwardPorts": [5301, 8501],
+    "forwardPorts": [8500],
     "postCreateCommand": "go mod download",
     "remoteUser": "root"
 }

@@ -1,20 +1,19 @@
 version: '3'
 
 services:
-  coredns-dev:
+  devcontainer:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile.dev
     volumes:
       - ..:/app/coredns-consulkv-plugin
       - ../Corefile:/app/coredns/Corefile
-    ports:
-      - "5301:53/udp"
-      - "5301:53/tcp"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
     command: /bin/sh -c "while sleep 1000; do :; done"
 
   consul:
     image: hashicorp/consul:latest
     ports:
-      - "8501:8500"
+      - "8500:8500"
     command: agent -dev -client=0.0.0.0
