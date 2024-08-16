@@ -47,17 +47,20 @@ func (consul ConsulConfig) WatchConsulKey(key string, fn handler) error {
 }
 
 func (consul ConsulConfig) WatchConsulConfig(config *ConsulKVConfig) error {
+	i := 0
 	err := consul.WatchConsulKey("config", func(kv *api.KVPair) error {
-		if err := json.Unmarshal(kv.Value, &config); err != nil {
-			logging.Log.Errorf("%s", err)
+		if i > 0 {
+			if err := json.Unmarshal(kv.Value, &config); err != nil {
+				logging.Log.Errorf("%s", err)
 
-			IncrementMetricsConsulConfigUpdatedTotal("ERROR")
-			return err
+				IncrementMetricsConsulConfigUpdatedTotal("ERROR")
+				return err
+			}
+
+			logging.Log.Infof("Updated Consul Config from '%s/config'", consul.KVPrefix)
+			IncrementMetricsConsulConfigUpdatedTotal("NOERROR")
 		}
-
-		logging.Log.Infof("Updated Consul Config from '%s/config'", consul.KVPrefix)
-		IncrementMetricsConsulConfigUpdatedTotal("NOERROR")
-
+		i++
 		return nil
 	})
 
