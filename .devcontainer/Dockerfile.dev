@@ -1,13 +1,7 @@
 FROM golang:1.22
 
-WORKDIR /app
-
-# Install development tools
-RUN apt-get update && apt-get install -y git curl unzip
-
-# Install Go tools
-RUN go install golang.org/x/tools/gopls@latest
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+# Install development tools and Consul
+RUN apt-get update && apt-get install -y curl unzip
 
 # Install Consul
 RUN curl -fsSL https://releases.hashicorp.com/consul/1.19.1/consul_1.19.1_linux_amd64.zip -o consul.zip \
@@ -15,17 +9,29 @@ RUN curl -fsSL https://releases.hashicorp.com/consul/1.19.1/consul_1.19.1_linux_
     && mv consul /usr/local/bin/ \
     && rm consul.zip
 
-# Clone CoreDNS repository
-RUN git clone https://github.com/coredns/coredns.git
+# Create a non-root user
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update \
+    && apt-get install -y sudo \
+    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
 
-WORKDIR /app/coredns
+# Set up workspace
+WORKDIR /workspace
 
-# Add our plugin to plugin.cfg
-RUN echo "consulkv:github.com/mwantia/coredns-consulkv-plugin" >> plugin.cfg
+# Switch to non-root user
+USER $USERNAME
+
+# Install Go tools
+RUN go install golang.org/x/tools/gopls@latest \
+    && go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Expose DNS ports
 EXPOSE 53/udp
 EXPOSE 53/tcp
 
-# Set the default command to bash
-CMD ["bash"]
+CMD ["sleep", "infinity"]

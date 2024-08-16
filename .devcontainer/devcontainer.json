@@ -1,8 +1,8 @@
 {
     "name": "CoreDNS ConsulKV Plugin Development",
     "dockerComposeFile": "compose.yml",
-    "service": "coredns-dev",
-    "workspaceFolder": "/app/coredns-consulkv-plugin",
+    "service": "devcontainer",
+    "workspaceFolder": "/workspace",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -10,6 +10,9 @@
                 "ms-azuretools.vscode-docker"
             ],
             "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go", 
                 "terminal.integrated.env.linux": {
                     "CONSUL_HTTP_ADDR": "http://consul:8500"
                 }
@@ -17,6 +20,12 @@
         }
     },
     "forwardPorts": [8500],
-    "postCreateCommand": "go mod download",
-    "remoteUser": "root"
+    "postCreateCommand": "go mod download && sudo chmod +x /workspace/.devcontainer/populate-consul.sh && /workspace/.devcontainer/populate-consul.sh",
+    "remoteUser": "root",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {
+            "version": "latest",
+            "ppa": "false"
+        }
+    }
 }
