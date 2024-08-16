@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows]
+        goarch: [amd64, arm, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm
+          - goos: windows
+            goarch: arm64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.22
+
+    - name: Get CoreDNS
+      run: |
+        git clone https://github.com/coredns/coredns.git
+        cd coredns
+        echo "consulkv:github.com/${{ github.repository }}" >> plugin.cfg
+
+    - name: Build
+      run: |
+        cd coredns
+        go generate
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o coredns
+      env:
+        CGO_ENABLED: 0
+
+    - name: Create archive
+      run: |
+        cd coredns
+        zip coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.zip coredns
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: coredns/coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+
+    - name: Upload Release Assets
+      run: |
+        for asset in coredns-consulkv-*/*; do
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Content-Type: application/octet-stream" \
+               --data-binary @"$asset" \
+               "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}/assets?name=$(basename "$asset")"
+        done
