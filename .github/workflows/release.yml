@@ -41,14 +41,22 @@ jobs:
           cd coredns
           go get github.com/mwantia/coredns-consulkv-plugin
           go generate
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o coredns
+          OUTPUT="coredns"
+          if [ "${{ matrix.goos }}" = "windows"]; then
+            OUTPUT+='.exe'
+          fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o $OUTPUT
         env:
           CGO_ENABLED: 0
 
       - name: Create Archive
         run: |
           cd coredns
-          zip coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.zip coredns
+          INPUT="coredns"
+          if [ "${{ matrix.goos }}" = "windows"]; then
+            INPUT+='.exe'
+          fi
+          zip coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.zip $INPUT
 
       - name: Upload release Archive
         uses: svenstaro/upload-release-action@v2
