@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        goos: [linux, windows]
+        goarch: [amd64, arm, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm
+          - goos: windows
+            goarch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '>=1.22'
+
+      - name: Get CoreDNS
+        run: |
+          git clone https://github.com/coredns/coredns.git
+          cd coredns
+          echo "consulkv:github.com/${{ github.repository }}" >> plugin.cfg
+
+      - name: Build
+        run: |
+          cd coredns
+          go get github.com/mwantia/coredns-consulkv-plugin
+          go generate
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o coredns
+        env:
+          CGO_ENABLED: 0
+
+      - name: Create Archive
+        run: |
+          cd coredns
+          zip coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.zip coredns
+
+      - name: Upload release Archive
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          file: coredns/coredns-consulkv-${{ matrix.goos }}-${{ matrix.goarch }}.*
+          file_glob: true
