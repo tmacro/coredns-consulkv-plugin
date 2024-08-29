@@ -18,6 +18,47 @@ It supports both forward and reverse DNS lookups, as well as wildcard entries.
 - Configurable TTL with default value
 - Metrics for monitoring (compatible with Prometheus)
 
+## Architecture
+
+The CoreDNS ConsulKV Plugin follows a modular architecture to process DNS queries and load records from the key/value storage:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CoreDNS
+    participant ConsulKV
+    participant Consul
+    participant NextPlugin
+    participant LockdownChecker
+
+    User->>CoreDNS: DNS Query
+    CoreDNS->>ConsulKV: Handle Query
+    alt Consul is reachable
+        ConsulKV->>Consul: Fetch DNS Record
+        Consul-->>ConsulKV: Return Record
+        alt Record found
+            ConsulKV-->>CoreDNS: DNS Response
+            CoreDNS-->>User: DNS Response
+        else Record not found
+            ConsulKV->>NextPlugin: Pass Query
+            NextPlugin-->>CoreDNS: DNS Response
+            CoreDNS-->>User: DNS Response
+        end
+    else Consul is unreachable (Lockdown mode)
+        ConsulKV->>NextPlugin: Bypass Query
+        NextPlugin-->>CoreDNS: DNS Response
+        CoreDNS-->>User: DNS Response
+        Note over ConsulKV,LockdownChecker: Start Lockdown Checker if not running
+        loop Every X seconds
+            LockdownChecker->>Consul: Check Connection
+            alt Consul is back online
+                Consul-->>LockdownChecker: Connection Successful
+                LockdownChecker->>ConsulKV: Exit Lockdown Mode
+            end
+        end
+    end
+```
+
 ## Installation
 
 To use this plugin, you need to compile it into CoreDNS. Add the following line to the `plugin.cfg` file in your CoreDNS source code:
