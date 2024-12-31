@@ -33,7 +33,7 @@ func setup(c *caddy.Controller) error {
 	}
 
 	if !conf.Consul.DisableWatch {
-		err = conf.Consul.WatchConsulConfig(conf.Config)
+		err = conf.Consul.WatchConsulConfig(conf.UpdateConsulConfig)
 		if err != nil {
 			logging.Log.Warningf("Unable to create Consul watcher for '%s/config'", conf.Consul.KVPrefix)
 		}

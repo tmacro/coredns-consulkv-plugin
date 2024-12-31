@@ -1,6 +1,8 @@
 package consulkv
 
 import (
+	"sync"
+
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/plugin"
 	"github.com/mwantia/coredns-consulkv-plugin/types"
@@ -10,6 +12,7 @@ type ConsulKVPlugin struct {
 	Next   plugin.Handler
 	Consul *ConsulConfig
 	Config *ConsulKVConfig
+	cfgMu  *sync.RWMutex
 }
 
 type ConsulKVConfig struct {
@@ -28,7 +31,9 @@ type ConsulKVCache struct {
 }
 
 func CreatePlugin(c *caddy.Controller) (*ConsulKVPlugin, error) {
-	plug := &ConsulKVPlugin{}
+	plug := &ConsulKVPlugin{
+		cfgMu: new(sync.RWMutex),
+	}
 
 	consul, err := CreateConsulConfig(c)
 	if err != nil {

@@ -17,6 +17,9 @@ func (plug ConsulKVPlugin) ServeDNS(ctx context.Context, writer dns.ResponseWrit
 	qname := state.Name()
 	qtype := state.QType()
 
+	plug.cfgMu.RLock()
+	defer plug.cfgMu.RUnlock()
+
 	logging.Log.Debugf("Received query for %s", qname)
 
 	zname, rname := GetZoneAndRecord(plug.Config.Zones, qname)
@@ -137,4 +140,10 @@ func (plug ConsulKVPlugin) HandleNoMatchingRecords(qname string, qtype uint16, c
 
 	IncrementMetricsResponsesFailedTotal(zname, qtype, "NXDOMAIN")
 	return HandleNXDomain(qname, soa, request, writer)
+}
+
+func (plug *ConsulKVPlugin) UpdateConsulConfig(cfg *ConsulKVConfig) {
+	plug.cfgMu.Lock()
+	defer plug.cfgMu.Unlock()
+	plug.Config = cfg
 }
